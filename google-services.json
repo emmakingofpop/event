@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "332235851419",
+    "project_id": "levrai-e907d",
+    "storage_bucket": "levrai-e907d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:332235851419:android:46a15899af498e5dff683e",
+        "android_client_info": {
+          "package_name": "com.fikiriatown.levrai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1nbliRLd6pX1Lac5-Q2_akEzycydn3GE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

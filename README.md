@@ -1,5 +1,13 @@
 # Welcome to your Expo app 👋
 
+
+Type                JKS
+Key Alias           e3e4f98a7fb8cc287257807c1ca6cebb
+MD5 Fingerprint     89:17:0C:E5:EF:41:93:AA:27:21:2B:B3:4A:C0:87:82
+SHA1 Fingerprint    8D:8A:CD:5C:A7:1A:40:27:CA:B0:14:35:9C:FF:55:20:1C:5D:C0:B1
+SHA256 Fingerprint  42:17:6C:5B:F4:9A:88:C7:99:D2:47:05:7F:65:3F:87:E3:C1:9D:C4:D6:1E:F2:5F:41:A6:62:02:A8:01:AD:F4
+Updated             29 seconds ago
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started
