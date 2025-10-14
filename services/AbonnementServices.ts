@@ -1,30 +1,48 @@
 import { db } from "@/services/firebaseConfig";
 import {
-    addDoc,
-    collection,
-    doc,
-    getDocs,
-    query,
-    serverTimestamp,
-    updateDoc,
-    where
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 
-// Firestore collection
+// Collection Firestore
 const abonnementCollection = collection(db, "abonnements");
 
 /**
- * Créer un abonnement pour un utilisateur
- * @param uid Identifiant utilisateur
- * @param category Nom de la catégorie
- * @param months Durée en mois (1 à 12)
+ * Génère un numéro d’abonnement unique au format :
+ * ABON-YYYYMMDD-XXXXXX
  */
+const generateUniqueAbonnementNumber = async (): Promise<string> => {
+  const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const datePart = new Date()
+    .toISOString()
+    .slice(0, 10)
+    .replace(/-/g, ""); // YYYYMMDD
 
+  const number = `ABON-${datePart}-${randomId}`;
+
+  // Vérifie que ce numéro n'existe pas déjà (sécurité)
+  const q = query(abonnementCollection, where("numero", "==", number));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    // En cas de collision rare, régénère
+    return generateUniqueAbonnementNumber();
+  }
+
+  return number;
+};
 
 /**
- * Crée ou met à jour un abonnement.
- * - Crée si aucun abonnement n’existe pour la catégorie.
- * - Met à jour uniquement si l’abonnement précédent est expiré.
+ * Crée ou met à jour un abonnement utilisateur
+ * - Crée si aucun abonnement n’existe pour la catégorie
+ * - Met à jour si expiré
+ * - Attribue un numéro d’abonnement unique
  */
 export const createAbonnement = async (
   uid: string,
@@ -40,7 +58,6 @@ export const createAbonnement = async (
     where("uid", "==", uid),
     where("category", "==", category)
   );
-
   const snapshot = await getDocs(q);
 
   const startDate = new Date();
@@ -48,37 +65,43 @@ export const createAbonnement = async (
   endDate.setMonth(startDate.getMonth() + months);
 
   if (snapshot.empty) {
-    // Aucun abonnement trouvé — on en crée un nouveau
+    // 🔹 Créer un nouvel abonnement
+    const numero = await generateUniqueAbonnementNumber();
+
     await addDoc(abonnementCollection, {
       uid,
       category,
       months,
+      numero,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       createdAt: serverTimestamp(),
-      active: false,
+      active: true,
     });
-    return "created";
+
+    return { status: "created", numero };
   } else {
-    // Un abonnement existe déjà → vérifier s’il est expiré
+    // 🔹 Déjà existant — vérifier expiration
     const docSnap = snapshot.docs[0];
     const data = docSnap.data();
     const end = new Date(data.endDate);
 
     if (end > now) {
-      // Abonnement encore actif
       throw new Error(`Un abonnement ${category} est encore actif.`);
     } else {
-      // Expiré → on met à jour
       const ref = doc(db, "abonnements", docSnap.id);
+      const numero = await generateUniqueAbonnementNumber();
+
       await updateDoc(ref, {
         months,
+        numero,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         updatedAt: serverTimestamp(),
-        active: false,
+        active: true,
       });
-      return "updated";
+
+      return { status: "updated", numero };
     }
   }
 };
@@ -86,8 +109,15 @@ export const createAbonnement = async (
 /**
  * Vérifie si un utilisateur a un abonnement actif
  */
-export const checkActiveAbonnement = async (uid: string, category: string) => {
-  const q = query(abonnementCollection, where("uid", "==", uid), where("category", "==", category));
+export const checkActiveAbonnement = async (
+  uid: string,
+  category: string
+): Promise<boolean> => {
+  const q = query(
+    abonnementCollection,
+    where("uid", "==", uid),
+    where("category", "==", category)
+  );
   const snapshot = await getDocs(q);
 
   if (snapshot.empty) return false;
@@ -100,10 +130,13 @@ export const checkActiveAbonnement = async (uid: string, category: string) => {
 };
 
 /**
- * Récupérer tous les abonnements de l’utilisateur
+ * Récupère tous les abonnements d’un utilisateur
  */
-export const getUserAbonnements = async (uid: string) => {
+export const getUserAbonnements = async (uid: string): Promise<any[]> => {
   const q = query(abonnementCollection, where("uid", "==", uid));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
 };

@@ -1,30 +1,61 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { getUserAbonnements } from "@/services/AbonnementServices";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import * as Progress from "react-native-progress";
 import MusiqueService from "../services/MusiqueService";
 
 const MusiqueScreen = () => {
-  const { colors } = useTheme(); // 🎨 Prend les couleurs du thème
+  const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [titre, setTitre] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [hasActiveMusiqueAbo, setHasActiveMusiqueAbo] = useState(false);
+  const [checkingAbo, setCheckingAbo] = useState(true);
 
-  // Sélectionner un fichier audio 🎵
+  // 🔐 Vérifie si l'utilisateur a un abonnement "Musique" actif
+  useEffect(() => {
+    const checkAbonnement = async () => {
+      try {
+        const abonnements = await getUserAbonnements(user.uid);
+        const abo = abonnements.find((a: any) => a.category === "Musique");
+
+        if (abo) {
+          const now = new Date();
+          const endDate = new Date(abo.endDate);
+          const daysLeft = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+          setHasActiveMusiqueAbo(abo.active && daysLeft > 0);
+        } else {
+          setHasActiveMusiqueAbo(false);
+        }
+      } catch (error) {
+        console.error("Erreur abonnement musique:", error);
+        setHasActiveMusiqueAbo(false);
+      } finally {
+        setCheckingAbo(false);
+      }
+    };
+
+    checkAbonnement();
+  }, [user?.uid]);
+
+  // 🎵 Sélectionner un fichier audio
   const pickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -40,7 +71,7 @@ const MusiqueScreen = () => {
     }
   };
 
-  // Upload du fichier
+  // ☁️ Upload du fichier
   const handleUpload = async () => {
     if (!file || !titre.trim()) {
       Alert.alert("Erreur", "Veuillez sélectionner un fichier audio et entrer un titre.");
@@ -68,6 +99,21 @@ const MusiqueScreen = () => {
       setUploading(false);
     }
   };
+
+  // 💡 Si on vérifie encore l’abonnement
+  if (checkingAbo) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.text, marginTop: 10 }}>Vérification de l'abonnement...</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -107,9 +153,19 @@ const MusiqueScreen = () => {
         <TouchableOpacity
           style={[styles.fileButton, { backgroundColor: colors.primary + "22" }]}
           onPress={pickFile}
+          disabled={!hasActiveMusiqueAbo}
         >
-          <Ionicons name="musical-notes" size={24} color={colors.primary} />
-          <Text style={[styles.fileText, { color: colors.text }]}>
+          <Ionicons
+            name="musical-notes"
+            size={24}
+            color={hasActiveMusiqueAbo ? colors.primary : "#999"}
+          />
+          <Text
+            style={[
+              styles.fileText,
+              { color: hasActiveMusiqueAbo ? colors.text : "#999" },
+            ]}
+          >
             {file ? file.name : "Choisir un fichier audio"}
           </Text>
         </TouchableOpacity>
@@ -134,21 +190,42 @@ const MusiqueScreen = () => {
         <TouchableOpacity
           style={[
             styles.uploadButton,
-            { backgroundColor: colors.primary },
-            uploading && { opacity: 0.7 },
+            {
+              backgroundColor: hasActiveMusiqueAbo
+                ? colors.primary
+                : "rgba(128,128,128,0.4)",
+              opacity: uploading ? 0.6 : 1,
+            },
           ]}
-          onPress={handleUpload}
-          disabled={uploading}
+          onPress={() => {
+            if (!hasActiveMusiqueAbo) {
+              Alert.alert(
+                "Abonnement requis",
+                "Vous devez avoir un abonnement actif à la catégorie Musique pour envoyer une musique 🎧"
+              );
+              return;
+            }
+            handleUpload();
+          }}
+          disabled={!hasActiveMusiqueAbo || uploading}
         >
           {uploading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
               <Ionicons name="cloud-upload" size={22} color="#fff" />
-              <Text style={styles.uploadText}>Envoyer la musique</Text>
+              <Text style={styles.uploadText}>
+                {hasActiveMusiqueAbo ? "Envoyer la musique" : "Verrouillé 🔒"}
+              </Text>
             </>
           )}
         </TouchableOpacity>
+
+        {!hasActiveMusiqueAbo && (
+          <Text style={{ textAlign: "center", marginTop: 10, color: "#ff5555" }}>
+            🔒 Cette fonctionnalité est réservée aux abonnés Musique actifs.
+          </Text>
+        )}
       </View>
     </SafeAreaView>
   );

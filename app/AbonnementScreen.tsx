@@ -1,10 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { createAbonnement } from "@/services/AbonnementServices";
+import { tel } from "@/type/type";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
     Alert,
+    Linking,
     ScrollView,
     StyleSheet,
     Text,
@@ -30,34 +32,53 @@ const AbonnementScreen = () => {
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
   const [loading, setLoading] = useState(false);
 
-  
+  // 🔹 Fonction d’envoi de message WhatsApp
+  const handleWhatsApp = (phone: string, message: string) => {
+    if (!phone) return;
+    const cleaned = phone.replace(/\s+/g, "");
+    const formatted = cleaned.startsWith("0") ? `243${cleaned.slice(1)}` : cleaned;
+
+    const encodedMessage = encodeURIComponent(message || "");
+    const url = `https://wa.me/${formatted}?text=${encodedMessage}`;
+    Linking.openURL(url).catch(() => console.error("Cannot open WhatsApp"));
+  };
+
+  // 🔹 Crée l’abonnement et envoie le message WhatsApp
   const handleSubscribe = async () => {
-  if (!selectedCategory && user?.uid) return Alert.alert("⚠️ Sélectionnez une catégorie");
-  try {
-    setLoading(true);
-    const result = await createAbonnement(user?.uid, selectedCategory || '', selectedMonths);
+    if (!selectedCategory) return Alert.alert("⚠️ Sélectionnez une catégorie");
+    if (!user?.uid) return Alert.alert("⚠️ Vous devez être connecté");
 
-    if (result === "created") {
-      Alert.alert(
-        "✅ Abonnement créé",
-        `Vous êtes abonné à ${selectedCategory} pour ${selectedMonths} mois.`
-      );
-    } else if (result === "updated") {
-      Alert.alert(
-        "🔁 Abonnement renouvelé",
-        `Votre abonnement à ${selectedCategory} a été renouvelé pour ${selectedMonths} mois.`
-      );
+    try {
+      setLoading(true);
+      const result = await createAbonnement(user.uid, selectedCategory, selectedMonths);
+
+      const message =
+        result.status === "created"
+          ? `✅ Abonnement !
+        
+Catégorie : ${selectedCategory}
+Durée : ${selectedMonths} mois
+Numéro d’abonnement : ${result.numero}
+
+Merci pour votre confiance 🎉`
+          : `🔄 Abonnement renouvelé !
+        
+Catégorie : ${selectedCategory}
+Durée : ${selectedMonths} mois
+Nouveau d’abonnement  : ${result.numero}
+
+Merci de continuer avec nous 💫`;
+
+      handleWhatsApp(tel, message);
+
+      setSelectedCategory(null);
+      setSelectedMonths(1);
+    } catch (error: any) {
+      Alert.alert("⚠️ Info", error.message);
+    } finally {
+      setLoading(false);
     }
-
-    setSelectedCategory(null);
-    setSelectedMonths(1);
-  } catch (error: any) {
-    Alert.alert("⚠️ Info", error.message);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -76,9 +97,7 @@ const AbonnementScreen = () => {
               styles.categoryButton,
               {
                 backgroundColor:
-                  selectedCategory === cat.name
-                    ? colors.primary
-                    : "rgba(255,255,255,0.1)",
+                  selectedCategory === cat.name ? colors.primary : "rgba(255,255,255,0.1)",
                 borderColor: colors.border,
               },
             ]}
@@ -115,9 +134,7 @@ const AbonnementScreen = () => {
                 styles.monthButton,
                 {
                   backgroundColor:
-                    selectedMonths === m
-                      ? colors.primary
-                      : "rgba(255,255,255,0.1)",
+                    selectedMonths === m ? colors.primary : "rgba(255,255,255,0.1)",
                 },
               ]}
             >
