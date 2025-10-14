@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { useTheme } from '@react-navigation/native';
@@ -6,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   ListRenderItemInfo,
@@ -17,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { checkActiveAbonnement } from '../../services/AbonnementServices';
 import MusiqueService from '../../services/MusiqueService';
 
 interface Song {
@@ -29,23 +32,46 @@ interface Song {
 }
 
 const Play = () => {
+  const { user } = useAuth();
   const { colors } = useTheme();
   const [musics, setMusics] = useState<Song[]>([]);
   const [filteredMusics, setFilteredMusics] = useState<Song[]>([]);
   const [currentMusic, setCurrentMusic] = useState<Song | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // 👈 NEW loading state
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasActiveAbonnement, setHasActiveAbonnement] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackStatus, setPlaybackStatus] = useState<AVPlaybackStatus | null>(null);
 
+  // Charger l'abonnement et les musiques
   useEffect(() => {
-    loadMusics();
+    checkAbonnementAndLoad();
     return () => {
       soundRef.current?.unloadAsync();
     };
   }, []);
+
+  const checkAbonnementAndLoad = async () => {
+    if (!user?.uid) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const active = await checkActiveAbonnement(user.uid, 'Streaming');
+      setHasActiveAbonnement(active);
+
+      if (active) {
+        await loadMusics();
+      }
+    } catch  {
+      Alert.alert('Erreur', "Impossible de vérifier l'abonnement.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (status.isLoaded) {
@@ -59,7 +85,7 @@ const Play = () => {
 
   const loadMusics = async () => {
     try {
-      setIsLoading(true); // 👈 Start loading
+      setIsLoading(true);
       const data = await MusiqueService.getMusics();
       const formattedData: Song[] = data.map((song: any) => ({
         ...song,
@@ -72,7 +98,7 @@ const Play = () => {
     } catch (error) {
       console.error('Erreur lors du chargement des musiques:', error);
     } finally {
-      setIsLoading(false); // 👈 End loading
+      setIsLoading(false);
     }
   };
 
@@ -94,6 +120,26 @@ const Play = () => {
           m.artist.toLowerCase().includes(lowerText)
       );
       setFilteredMusics(filtered);
+    }
+  };
+
+  const playMusicWithAbonnementCheck = async (music: Song) => {
+    try {
+      if (!user?.uid) {
+        Alert.alert('⚠️', 'Utilisateur non connecté');
+        return;
+      }
+
+      const hasActive = await checkActiveAbonnement(user.uid, 'Musique');
+      if (!hasActive) {
+        Alert.alert('Abonnement requis', 'Vous devez avoir un abonnement actif pour écouter la musique.');
+        return;
+      }
+
+      await playMusic(music);
+    } catch (error) {
+      console.error('Erreur abonnement :', error);
+      Alert.alert('Erreur', "Impossible de vérifier l'abonnement.");
     }
   };
 
@@ -124,21 +170,21 @@ const Play = () => {
 
   const handlePlayPause = () => {
     if (!currentMusic) return;
-    playMusic(currentMusic);
+    playMusicWithAbonnementCheck(currentMusic);
   };
 
   const handleNext = () => {
     if (!currentMusic || filteredMusics.length === 0) return;
     const currentIndex = filteredMusics.findIndex((m) => m.id === currentMusic.id);
     const nextIndex = (currentIndex + 1) % filteredMusics.length;
-    playMusic(filteredMusics[nextIndex]);
+    playMusicWithAbonnementCheck(filteredMusics[nextIndex]);
   };
 
   const handlePrevious = () => {
     if (!currentMusic || filteredMusics.length === 0) return;
     const currentIndex = filteredMusics.findIndex((m) => m.id === currentMusic.id);
     const prevIndex = (currentIndex - 1 + filteredMusics.length) % filteredMusics.length;
-    playMusic(filteredMusics[prevIndex]);
+    playMusicWithAbonnementCheck(filteredMusics[prevIndex]);
   };
 
   const getSliderPosition = () => {
@@ -156,7 +202,7 @@ const Play = () => {
   };
 
   const renderSongItem = ({ item, index }: ListRenderItemInfo<Song>) => (
-    <TouchableOpacity onPress={() => playMusic(item)}>
+    <TouchableOpacity onPress={() => playMusicWithAbonnementCheck(item)}>
       <View style={styles(colors).songItemContainer}>
         <Text style={styles(colors).songItemNumber}>{String(index + 1).padStart(2, '0')}</Text>
         <Image source={{ uri: item.albumArtUrl }} style={styles(colors).songItemArt} />
@@ -172,15 +218,19 @@ const Play = () => {
   return (
     <LinearGradient colors={['#fff', '#fce8ed', '#fee2e9']} style={styles(colors).container}>
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Header + Refresh + Search */}
         <View style={styles(colors).header}>
           <Text style={styles(colors).headerTextTitle}>🎶 Ma Playlist</Text>
-          <TouchableOpacity onPress={handleRefresh}>
-            <Ionicons name="refresh" size={24} color={colors.primary} />
-          </TouchableOpacity>
+          {hasActiveAbonnement ? (
+            <TouchableOpacity onPress={handleRefresh}>
+              <Ionicons name="refresh" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          ):(
+            <TouchableOpacity onPress={()=>checkAbonnementAndLoad()}>
+              <Ionicons name="refresh" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Barre de recherche */}
         <View style={styles(colors).searchContainer}>
           <Ionicons name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
           <TextInput
@@ -189,18 +239,17 @@ const Play = () => {
             placeholderTextColor="#aaa"
             value={searchQuery}
             onChangeText={handleSearch}
+            editable={hasActiveAbonnement}
           />
         </View>
 
-        {/* Chargement */}
         {isLoading ? (
           <View style={styles(colors).loaderContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles(colors).loadingText}>Chargement des musiques...</Text>
           </View>
-        ) : (
+        ) : hasActiveAbonnement ? (
           <>
-            {/* Section en cours de lecture */}
             <View style={styles(colors).nowPlayingSection}>
               <Text style={styles(colors).songTitle}>{currentMusic?.titre || 'Aucune musique sélectionnée'}</Text>
               <Text style={styles(colors).songArtist}>{currentMusic?.artist || ''}</Text>
@@ -232,7 +281,6 @@ const Play = () => {
               </View>
             </View>
 
-            {/* Liste des musiques */}
             <FlatList
               data={filteredMusics}
               renderItem={renderSongItem}
@@ -241,6 +289,12 @@ const Play = () => {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
             />
           </>
+        ) : (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
+            <Text style={{ fontSize: 18, color: colors.text, textAlign: 'center' }}>
+              ⚠️ Vous devez avoir un abonnement actif pour accéder à la musique.
+            </Text>
+          </View>
         )}
       </SafeAreaView>
     </LinearGradient>

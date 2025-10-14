@@ -23,6 +23,7 @@ export const categories = [
   { name: "Livraison", icon: "bicycle" },
   { name: "Rencontre", icon: "heart" },
   { name: "Musique", icon: "musical-notes" },
+  { name: "Streaming", icon: "musical-notes" },
 ];
 
 const AbonnementScreen = () => {

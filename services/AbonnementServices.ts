@@ -76,7 +76,7 @@ export const createAbonnement = async (
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       createdAt: serverTimestamp(),
-      active: true,
+      active: false,
     });
 
     return { status: "created", numero };
@@ -98,7 +98,7 @@ export const createAbonnement = async (
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         updatedAt: serverTimestamp(),
-        active: true,
+        active: false,
       });
 
       return { status: "updated", numero };

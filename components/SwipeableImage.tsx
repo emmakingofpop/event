@@ -1,11 +1,14 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { FactureService } from "@/services/FactureService";
+import { getProfileByUid } from "@/services/profileService";
+import { tel } from "@/type/type";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
 import * as NavigationBar from "expo-navigation-bar";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Dimensions, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Dimensions, Linking, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -36,11 +39,103 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
   const { colors } = useTheme();
   const { item,online } = useAuth();
   const [visible, setVisible] = useState(false);
+    const [userProfile, setUserProfile] = useState<any>(null);
   const [quantity, setQuantity] = useState("1");
+  const [isLoading, setIsloading] = useState<boolean>(false);
+  const { user } = useAuth();
+
+  const desc = `Bonjour, je souhaite effectuer l'achat de ${item.title} / ${item.style || ''}. Merci !`
+  
 
   useEffect(() => {
     NavigationBar.setVisibilityAsync("hidden");
+    
+
   }, [])
+
+  
+  useEffect(() => {
+   
+    if(item.category === "Événements" && user?.uid){
+        getProfileByUserId(user?.uid)
+    }
+
+  }, [user])
+
+  const getProfileByUserId = async (uid: string) => {
+      try {
+        setIsloading(true)
+        const userP = await getProfileByUid(uid)
+        if(userP.length > 0) setUserProfile(userP[0])
+          
+      } catch{
+        
+      }finally{
+        setIsloading(false)
+      }
+  }
+
+  const loadProfile = async (phone: string, message: string) => {
+    try {
+      setIsloading(true)
+      if (userProfile?.tel) {
+        handleWhatsApp(userProfile?.tel,message)
+      } else {
+        getProfileByUserId(user?.uid)
+        if(userProfile?.tel) handleWhatsApp(userProfile?.tel,message)
+      }
+    } catch  {
+      
+    }finally{
+      setIsloading(false)
+    }
+    
+  }
+
+
+  // 🔹 Fonction d’envoi de message WhatsApp
+  const handleWhatsApp = (phone: string, message: string) => {
+    if (!phone) return;
+    const cleaned = phone.replace(/\s+/g, "");
+    const formatted = cleaned.startsWith("0") ? `243${cleaned.slice(1)}` : cleaned;
+
+    const encodedMessage = encodeURIComponent(message || "");
+    const url = `https://wa.me/${formatted}?text=${encodedMessage}`;
+    Linking.openURL(url).catch(() => console.error("Cannot open WhatsApp"));
+  };
+
+  
+    // 
+  
+    const handleAchatEvent = async () => {
+      
+        try {
+          setIsloading(true)
+          const desc = `Achat ${item.title} / ${item.style || ''} `
+          const id = await FactureService.createFacture({
+            uid: user?.uid,
+            etat: "en attente",
+            posteId:item.id || '',
+            scanned:false,
+            items: [
+              { id: "1", nom: desc, quantite: 0, prix: 0 },
+            ],
+          });
+  
+          if (id) {
+            handleWhatsApp(
+                tel,
+                `Bonjour, je souhaite effectuer l'achat de ${item.title} / ${item.style || ''} , 
+              par la facture numéro : ${id}. Merci !`
+              );
+  
+              setIsloading(false)
+          }
+  
+        } catch {
+              setIsloading(false)
+        }
+    }
 
 
   const handleNext = () => {
@@ -203,10 +298,12 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
                 {item?.description}
             </Text>
           </ScrollView>
+
+          {item.category === "Événements" ? (
+              
           <TouchableOpacity style={{flex:1,position:'absolute',bottom:0,width:'100%',height:height*0.1,backgroundColor:colors.primary,justifyContent:'center',alignItems:'center'}}
-                onPress={() => setVisible(true)}
-                    >
-                        
+                onPress={() => handleAchatEvent()}
+                    >  
                     <Ionicons
                     name="cart"
                     size={22}
@@ -214,6 +311,21 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
                     />
                     <Text style={{color:'white'}}>Acheter</Text>
           </TouchableOpacity>
+          ):(
+              
+          <TouchableOpacity style={{flex:1,position:'absolute',bottom:0,width:'100%',height:height*0.1,backgroundColor:colors.primary,justifyContent:'center',alignItems:'center'}}
+                onPress={() => {
+                  if(user?.uid) loadProfile(userProfile?.tel,desc)
+                }}>
+                    <Ionicons
+                    name="cart"
+                    size={22}
+                    color={'white'}
+                    />
+                    <Text style={{color:'white'}}>Acheters</Text>
+          </TouchableOpacity>
+          )}
+
 
           {/* Popup Card */}
       <Modal

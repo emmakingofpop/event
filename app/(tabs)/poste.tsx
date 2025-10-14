@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getUserAbonnements } from '@/services/AbonnementServices';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import Header from '../components/header';
 
 
 export type Article = {
@@ -86,6 +87,7 @@ export default function Poste() {
 
   const fetchAbonnements = async () => {
     try {
+      setLoadingAbos(true)
       const data = await getUserAbonnements(user.uid);
       setUserAbos(data);
     } catch (err) {
@@ -260,13 +262,25 @@ export default function Poste() {
     >
 
         <View style={styles.container}>
+          <Header />
           <ScrollView 
             showsVerticalScrollIndicator={false} 
-            style={[styles.card,{paddingBottom: 70,maxHeight:'80%',}]}
+            style={[styles.card,{paddingBottom: 70,maxHeight:'70%',}]}
             keyboardShouldPersistTaps="handled"
             >
-            <Text style={[styles.title,{color:colors.text}]}>Nouvel Article</Text>
+            
+            <View style={{flexDirection:'row',justifyContent:'space-around'}}>
+                  
+              <Text style={[styles.title,{color:colors.text}]}>Nouvel Article</Text>
 
+              <TouchableOpacity onPress={()=>{
+                if (user?.uid) fetchAbonnements();
+              }}>
+                <Ionicons name="refresh" size={24} color={colors.primary} />
+              </TouchableOpacity>
+
+            </View>
+            
             {/* Sélection de la catégorie */}
             { selectedCategory !== "Transport" && 
             <TextInput
@@ -568,7 +582,8 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 5,
+    padding: 10,
+    marginTop:20,
   },
   card: {
     marginTop:20,
