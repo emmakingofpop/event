@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { getArticlesByCategory } from '@/services/articleService';
+import { souscat } from '@/type/type';
 import { Picker } from "@react-native-picker/picker";
 import { useTheme } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
@@ -17,7 +18,7 @@ const Postuler = () => {
   const { colors } = useTheme();
   const { user } = useAuth();
 
-  const souscat = ['sous cat 1', 'sous cat 2', 'sous cat 3', 'sous cat 4', 'sous cat 5'];
+
 
   useEffect(() => {
     const getArticlesByCategori = async () => {
@@ -127,7 +128,7 @@ const Postuler = () => {
             >
               <Picker.Item label="Sélectionnez" value="" />
               {souscat.map((cat, idx) => (
-                <Picker.Item key={idx} label={cat} value={cat} />
+                <Picker.Item key={idx} label={cat.title} value={cat.title} />
               ))}
             </Picker>
           </View>

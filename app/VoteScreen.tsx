@@ -4,12 +4,13 @@ import { FactureService } from '@/services/FactureService';
 import { LikeService } from '@/services/likeService';
 import { PostulerService } from '@/services/postulerService';
 import { getProfilesByUids } from '@/services/profileService';
-import { tel } from '@/type/type';
+import { souscat, tel } from '@/type/type';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -38,8 +39,6 @@ const VoteScreen = () => {
 
   const { colors } = useTheme();
   const { user } = useAuth();
-
-  const souscat = ['sous cat 1', 'sous cat 2', 'sous cat 3', 'sous cat 4', 'sous cat 5'];
 
   // Load articles
   useEffect(() => {
@@ -71,6 +70,7 @@ const VoteScreen = () => {
 
     const getAllPostulersWithEventIds = async (eventId: string) => {
       try {
+        setIsloading(true);
         let postulers = await PostulerService.getAllPostulersWithEventId(eventId);
 
         // Filter by category if ballon d'or
@@ -103,8 +103,10 @@ const VoteScreen = () => {
         } else {
           setProfiles([]);
         }
-      } catch (error) {
+      } catch  {
         
+      } finally {
+        setIsloading(false);
       }
     };
 
@@ -256,7 +258,7 @@ const handleLike = async (item: any) => {
             >
               <Picker.Item label="Sélectionnez" value="" />
               {souscat.map((cat, idx) => (
-                <Picker.Item key={idx} label={cat} value={cat} />
+                <Picker.Item key={idx} label={cat.title} value={cat.title} />
               ))}
             </Picker>
           </View>
@@ -264,17 +266,31 @@ const handleLike = async (item: any) => {
       )}
 
       {/* Profiles list */}
-      <FlatList
-        data={profiles}
-        numColumns={2}
-        keyExtractor={(item, idx) => item?.id ?? idx.toString()}
-        renderItem={renderProfileCard}
-        columnWrapperStyle={styles.cardRow}
-        ListEmptyComponent={<Text style={styles.emptyText}>Aucun profil trouvé.</Text>}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        removeClippedSubviews
-        windowSize={5}
-      />
+      {/* Profiles list */}
+      {isLoading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={colors.primary || "#0077b6"} />
+          <Text style={styles.loadingText}>Chargement des candidats...</Text>
+        </View>
+      ) : (typeselected !== "ballon d'or" || (typeselected === "ballon d'or" && souscategorie)) ? (
+        <FlatList
+          data={profiles}
+          numColumns={2}
+          keyExtractor={(item, idx) => item?.id ?? idx.toString()}
+          renderItem={renderProfileCard}
+          columnWrapperStyle={styles.cardRow}
+          ListEmptyComponent={<Text style={styles.emptyText}>Aucun profil trouvé.</Text>}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          removeClippedSubviews
+          windowSize={5}
+        />
+      ) : typeselected === "ballon d'or" ? (
+        <Text style={styles.emptyText}>
+          Veuillez sélectionner une sous-catégorie avant d’afficher les candidats.
+        </Text>
+      ) : null}
+
+
 
       {/* Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
@@ -378,6 +394,17 @@ const styles = StyleSheet.create({
   payBtn: {
     backgroundColor: "#0077b6",
   },
+  loaderContainer: {
+    marginTop: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#555',
+    fontSize: 16,
+  },
+
 
 });
 

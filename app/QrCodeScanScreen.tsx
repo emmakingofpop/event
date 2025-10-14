@@ -113,7 +113,7 @@ export default function QrCodeScanScreen() {
               >
                 <Picker.Item label="Sélectionnez" value="" />
                 {souscat.map((cat, idx) => (
-                  <Picker.Item key={idx} label={cat} value={cat} />
+                  <Picker.Item key={idx} label={cat.title} value={cat.title} />
                 ))}
               </Picker>
             </View>

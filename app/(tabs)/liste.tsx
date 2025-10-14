@@ -275,19 +275,19 @@ const Liste = ({ onPressItem }: Props) => {
           <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
             onPress={() => router.push("/FactureScreen")}
           >
-              <Text>Facture</Text>
+              <Text style={{ color: '#fff' }}>Facture</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push("/FactureScreen")}
+            onPress={() => router.push("/AbonnementScreen")}
           >
-              <Text>Abonnements</Text>
+              <Text style={{ color: '#fff' }}>Abonnements</Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push("/FactureScreen")}
+            onPress={() => router.push("/ListeAbonnementScreen")}
           >
-              <Text>Liste Abonnements</Text>
+              <Text style={{ color: '#fff' }}>Liste Abonnements</Text>
             </TouchableOpacity>
         </ScrollView>
 
@@ -381,9 +381,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
   },
-    btn: {paddingVertical:4,paddingHorizontal:8,borderRadius: 16,justifyContent: 'center',
+    btn: {paddingVertical:6,paddingHorizontal:8,borderRadius: 16,justifyContent: 'center',
     alignItems: 'center',
-    margin: 13,},
+    marginVertical: 13,marginHorizontal:5},
 })
 
 export default Liste

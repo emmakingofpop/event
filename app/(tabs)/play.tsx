@@ -5,6 +5,7 @@ import { Audio, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   ListRenderItemInfo,
@@ -34,6 +35,7 @@ const Play = () => {
   const [currentMusic, setCurrentMusic] = useState<Song | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // 👈 NEW loading state
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackStatus, setPlaybackStatus] = useState<AVPlaybackStatus | null>(null);
@@ -57,6 +59,7 @@ const Play = () => {
 
   const loadMusics = async () => {
     try {
+      setIsLoading(true); // 👈 Start loading
       const data = await MusiqueService.getMusics();
       const formattedData: Song[] = data.map((song: any) => ({
         ...song,
@@ -68,6 +71,8 @@ const Play = () => {
       if (formattedData.length > 0 && !currentMusic) setCurrentMusic(formattedData[0]);
     } catch (error) {
       console.error('Erreur lors du chargement des musiques:', error);
+    } finally {
+      setIsLoading(false); // 👈 End loading
     }
   };
 
@@ -187,46 +192,56 @@ const Play = () => {
           />
         </View>
 
-        {/* Section en cours de lecture */}
-        <View style={styles(colors).nowPlayingSection}>
-          <Text style={styles(colors).songTitle}>{currentMusic?.titre || 'Aucune musique sélectionnée'}</Text>
-          <Text style={styles(colors).songArtist}>{currentMusic?.artist || ''}</Text>
-          <Slider
-            style={styles(colors).slider}
-            minimumValue={0}
-            maximumValue={1}
-            value={getSliderPosition()}
-            onSlidingComplete={onSliderValueChange}
-            minimumTrackTintColor={colors.primary}
-            maximumTrackTintColor="#ddd"
-            thumbTintColor={colors.primary}
-          />
-          <View style={styles(colors).controls}>
-            <TouchableOpacity onPress={handlePrevious}>
-              <Ionicons name="play-skip-back" size={30} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles(colors).playButton} onPress={handlePlayPause}>
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={35}
-                color="#fff"
-                style={{ marginLeft: isPlaying ? 0 : 4 }}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleNext}>
-              <Ionicons name="play-skip-forward" size={30} color={colors.primary} />
-            </TouchableOpacity>
+        {/* Chargement */}
+        {isLoading ? (
+          <View style={styles(colors).loaderContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles(colors).loadingText}>Chargement des musiques...</Text>
           </View>
-        </View>
+        ) : (
+          <>
+            {/* Section en cours de lecture */}
+            <View style={styles(colors).nowPlayingSection}>
+              <Text style={styles(colors).songTitle}>{currentMusic?.titre || 'Aucune musique sélectionnée'}</Text>
+              <Text style={styles(colors).songArtist}>{currentMusic?.artist || ''}</Text>
+              <Slider
+                style={styles(colors).slider}
+                minimumValue={0}
+                maximumValue={1}
+                value={getSliderPosition()}
+                onSlidingComplete={onSliderValueChange}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor="#ddd"
+                thumbTintColor={colors.primary}
+              />
+              <View style={styles(colors).controls}>
+                <TouchableOpacity onPress={handlePrevious}>
+                  <Ionicons name="play-skip-back" size={30} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles(colors).playButton} onPress={handlePlayPause}>
+                  <Ionicons
+                    name={isPlaying ? 'pause' : 'play'}
+                    size={35}
+                    color="#fff"
+                    style={{ marginLeft: isPlaying ? 0 : 4 }}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleNext}>
+                  <Ionicons name="play-skip-forward" size={30} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        {/* Liste des musiques */}
-        <FlatList
-          data={filteredMusics}
-          renderItem={renderSongItem}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={{ paddingTop: 10, paddingBottom: 20 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        />
+            {/* Liste des musiques */}
+            <FlatList
+              data={filteredMusics}
+              renderItem={renderSongItem}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={{ paddingTop: 10, paddingBottom: 20 }}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+            />
+          </>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -290,6 +305,8 @@ const styles = (colors: any) =>
     songItemInfo: { flex: 1 },
     songItemTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
     songItemArtist: { fontSize: 14, color: 'gray' },
+    loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 },
+    loadingText: { marginTop: 10, color: '#666', fontSize: 16 },
   });
 
 export default Play;

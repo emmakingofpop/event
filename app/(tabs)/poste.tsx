@@ -4,6 +4,7 @@ import { Picker } from "@react-native-picker/picker";
 import { useTheme } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import {
+  ActivityIndicator,
   Alert,
   Animated, Easing,
   FlatList,
@@ -20,6 +21,7 @@ import {
 import { createArticle } from "../../services/articleService";
 
 import { useAuth } from '@/contexts/AuthContext';
+import { getUserAbonnements } from '@/services/AbonnementServices';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -67,6 +69,8 @@ export default function Poste() {
   const [prix, setPrix] = useState('');
   const [currency, setCurrency] = useState<'FC' | 'USD'>('FC');
   const [isLoading,setIsloading] = useState<boolean>(false)
+  const [userAbos, setUserAbos] = useState<any[]>([]);
+  const [loadingAbos, setLoadingAbos] = useState(true);
   const { colors } = useTheme();
   const { user } = useAuth();
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -74,6 +78,31 @@ export default function Poste() {
   useEffect(() => {
       spinning()
   }, []);
+
+  
+  useEffect(() => {
+    if (user?.uid) fetchAbonnements();
+  }, [user?.uid]);
+
+  const fetchAbonnements = async () => {
+    try {
+      const data = await getUserAbonnements(user.uid);
+      setUserAbos(data);
+    } catch (err) {
+      console.error("Erreur abonnements:", err);
+    } finally {
+      setLoadingAbos(false);
+    }
+  };
+
+  const isCategoryAvailable = (category: string): boolean => {
+    const abo = userAbos.find((a) => a.category === category);
+    if (!abo) return false;
+    const daysLeft =
+      (new Date(abo.endDate).getTime() - new Date().getTime()) /
+      (1000 * 60 * 60 * 24);
+    return abo.active && daysLeft > 0;
+  };
 
 
 
@@ -290,39 +319,85 @@ export default function Poste() {
               multiline
             />
 
-            {/* Sélection de la catégorie */}
-            <Text style={[styles.sectionTitle,{color:colors.text}]}>Catégorie</Text>
-            <FlatList
-              data={categories}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.name}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.categoryItem,{backgroundColor:colors.card},
-                    selectedCategory === item.name && {backgroundColor:colors.primary},
-                  ]}
-                  onPress={() => setSelectedCategory(item.name)}
+      {/* --- Catégories --- */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Catégorie
+      </Text>
+
+      {loadingAbos ? (
+        <View style={{ alignItems: "center", marginTop: 10 }}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={{ color: colors.text, opacity: 0.6 }}>
+            Chargement des abonnements...
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={categories}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.name}
+          renderItem={({ item }) => {
+            const available = isCategoryAvailable(item.name);
+            const isSelected = selectedCategory === item.name && available;
+
+            return (
+              <TouchableOpacity
+                disabled={!available}
+                style={[
+                  styles.categoryItem,
+                  {
+                    backgroundColor: available
+                      ? isSelected
+                        ? colors.primary
+                        : colors.card
+                      : "rgba(128,128,128,0.15)",
+                    borderColor: available
+                      ? colors.primary
+                      : "rgba(128,128,128,0.3)",
+                  },
+                ]}
+                onPress={() => {
+                  if (!available) {
+                    Alert.alert(
+                      "Abonnement requis",
+                      "Vous devez avoir un abonnement actif pour cette catégorie."
+                    );
+                    return;
+                  }
+                  setSelectedCategory(item.name);
+                }}
+              >
+                <Ionicons
+                  name={item.icon as any}
+                  size={22}
+                  color={available ? (isSelected ? "#fff" : colors.primary) : "#888"}
+                />
+                <Text
+                  style={{
+                    color: available
+                      ? isSelected
+                        ? "#fff"
+                        : colors.primary
+                      : "#888",
+                    marginTop: 4,
+                    fontSize: 12,
+                    textAlign: "center",
+                  }}
                 >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={22}
-                    color={selectedCategory === item.name ? '#fff' : colors.primary}
-                  />
-                  <Text
-                    style={{
-                      color: selectedCategory === item.name ? '#fff' : colors.primary,
-                      marginTop: 4,
-                      fontSize: 12,
-                    }}
-                  >
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              style={{ marginBottom: 16 }}
-            />
+                  {item.name}
+                </Text>
+                {!available && (
+                  <View style={styles.lockBadge}>
+                    <Ionicons name="lock-closed" size={12} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
             {/* Date picker */}
             { selectedCategory === 'Événements' &&
@@ -525,6 +600,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
     width: 90,
+  },
+
+    lockBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(255,0,0,0.7)",
+    borderRadius: 8,
+    padding: 2,
   },
 
   imageButton: {

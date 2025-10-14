@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   updateDoc,
@@ -64,6 +65,23 @@ export const createArticle = async (article: any) => {
 export const getArticles = async () => {
   const snapshot = await getDocs(articleCollection);
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+};
+
+
+/**
+ * Lire les 10 derniers articles (triés par date de création décroissante)
+ */
+export const getArticlesLimit = async (): Promise<any | null> => {
+  try {
+    const q = query(articleCollection, orderBy("created_at", "desc"), limit(10));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch {
+    return null
+  }
 };
 
 /**

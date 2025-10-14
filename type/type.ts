@@ -21,6 +21,51 @@ export interface Facture {
 
 export const tel = '0977436749';
 
-export const prixLikes = 0.5
+export const prixLikes = 0.5;
 
-export const souscat = ['sous cat 1', 'sous cat 2', 'sous cat 3', 'sous cat 4', 'sous cat 5'];
+export const categories = [
+  { name: 'Événements', icon: 'calendar' },
+  { name: 'Shopping', icon: 'cart' },
+  { name: 'Transport', icon: 'car' },
+  { name: 'Réservation', icon: 'bed' },
+  { name: 'Livraison', icon: 'bicycle' },
+  { name: 'Rencontre', icon: 'heart' },
+  { name: 'Musique', icon: 'musical-notes' },
+];
+
+
+
+export const souscat = [
+  {
+    title: "🏆 Ballon d’Or masculin",
+    description: "Récompense le meilleur joueur de football masculin au monde."
+  },
+  {
+    title: "🏆 Ballon d’Or féminin",
+    description: "Récompense la meilleure joueuse de football au monde."
+  },
+  {
+    title: "🏆 Trophée Kopa",
+    description: "Attribué au meilleur joueur de moins de 21 ans."
+  },
+  {
+    title: "🏆 Trophée Yachine",
+    description: "Décerné au meilleur gardien de but de la saison."
+  },
+  {
+    title: "🏆 Trophée Gerd Müller",
+    description: "Récompense le meilleur buteur de l’année toutes compétitions confondues."
+  },
+  {
+    title: "🏆 Trophée Socrates",
+    description: "Distinction pour l’engagement humanitaire et social d’un joueur."
+  },
+  {
+    title: "🏆 Club de l’année",
+    description: "Récompense le meilleur club de football de la saison."
+  },
+  {
+    title: "🏆 Coach de l’année",
+    description: "Récompense le meilleur entraîneur de la saison."
+  }
+];

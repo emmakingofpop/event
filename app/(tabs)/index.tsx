@@ -1,15 +1,36 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { getArticlesLimit } from '@/services/articleService';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Header from '../components/header';
 
-export default function HomeScreen() {  
+// Get the full width of the screen for the modal images
+const { width } = Dimensions.get('window');
+
+export default function HomeScreen() {
   const { colors } = useTheme();
-  const { user,setCat,sendNotification  } = useAuth();
-  // Catégories basées sur ton document
+  const { user, setCat } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any[]>([]); 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
   const categories = [
     { name: 'Événements', icon: 'calendar' },
     { name: 'Shopping', icon: 'cart' },
@@ -19,108 +40,217 @@ export default function HomeScreen() {
     { name: 'Rencontre', icon: 'heart' },
   ];
 
-  // Exemple de données (futur: à récupérer depuis backend / Firestore)
-  const items = [
-    { name: 'Concert Gospel', price: '15$', image: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRaRbFjgr9vxlF98DrAO0zFED-z8SZecw0-ww&s' },
-    { name: 'Chemise Homme', price: '20$', image: 'https://lechemiseur.fr/data/lechemiseur/chemise-homme/fiche-produit-pleine-page/fiche-produit-pleine-page-v4/LE-CHEMISEUR-chemise-homme-blanche-Thomas-Mason-luxe-UW11-carre.jpg' },
-    { name: 'Taxi Moto', price: '1.5$/km', image: 'https://s.rfi.fr/media/display/ded235a8-0fac-11ea-ae72-005056a99247/w:1024/p:16x9/img_9428_0_0.jpg' },
-  ];
-
-  const setrouter = (cat:string) => {
-    // Navigation logic here
+  const setrouter = (cat: string) => {
     setCat(cat);
-    router.push("/ListePoste")
-  }
-  const handlePress = () => {
-    sendNotification("🔔 LEVRAI", "This is a global test notification!", {
-      screen: "ListePoste",
-    });
+    router.push('/ListePoste');
+  };
+
+  useEffect(() => {
+    getAllArticles();
+  }, [user]);
+
+  const getAllArticles = async () => {
+    try {
+      setLoading(true);
+      const res = await getArticlesLimit();
+      if (res) {
+        setData(res);
+        setFilteredData(res);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+    if (text) {
+      const newData = data.filter((item) => {
+        const itemData = item.title ? item.title.toUpperCase() : ''.toUpperCase();
+        const textData = text.toUpperCase();
+        return itemData.indexOf(textData) > -1;
+      });
+      setFilteredData(newData);
+    } else {
+      setFilteredData(data);
+    }
   };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} style={styles.container}>
-      {/* Header */}
+      {/* Header, Search, Buttons, and Categories remain the same */}
       <Header />
-
-      {/* <Button title="Send Notification" onPress={handlePress} /> */}
-
-      {/* Search */}
       <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TextInput
-          placeholder="Rechercher..."
+          placeholder="Rechercher un produit ou service..."
           placeholderTextColor={colors.text}
           style={[styles.searchInput, { color: colors.text }]}
+          value={searchQuery}
+          onChangeText={handleSearch}
         />
         <Ionicons name="search" size={22} color={colors.primary} />
       </View>
-
-      {/* bouton ajout miss et ajout balon d'or */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/Postuler")}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/Postuler')}
         >
-          <Text>Postuler</Text>
+          <Text style={{ color: '#fff' }}>Postuler</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/VoteScreen")}
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/VoteScreen')}
         >
-          <Text>Voter</Text>
+          <Text style={{ color: '#fff' }}>Voter</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/MusiqueScreen")}
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/MusiqueScreen')}
         >
-          <Text>Import Musiques</Text>
+          <Text style={{ color: '#fff' }}>Import Musiques</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/AgentscanScreen")}
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/AgentscanScreen')}
         >
-          <Text>Agent Scan</Text>
+          <Text style={{ color: '#fff' }}>Agent Scan</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/QrCodeScanScreen")}
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/QrCodeScanScreen')}
         >
-          <Text>Qr Code Scan</Text>
+          <Text style={{ color: '#fff' }}>Qr Code Scan</Text>
         </TouchableOpacity>
       </ScrollView>
+      <View style={styles.categories}>
+        {categories.map((cat, index) => (
+          <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: colors.card }]} onPress={() => setrouter(cat.name)}>
+            <Ionicons name={cat.icon as any} size={24} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>{cat.name}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Catégories */}
-        <View style={styles.categories}>
-          {categories.map((cat, index) => (
-            <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: colors.card }]}
-              onPress={() => setrouter(cat.name)}
-            >
-              <Ionicons name={cat.icon as any} size={24} color={colors.primary} />
-              <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>{cat.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* Section Produits / Services */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>À découvrir</Text>
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : (
+          <>
+            {filteredData.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {filteredData.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      activeOpacity={0.8}
+                      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+                      onPress={() => setSelectedItem(item)}
+                    >
+                      <View style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: item.images?.[0] }}
+                          style={{ width: 170, height: 120, borderRadius: 16 }}
+                        />
+                        {/* Overlay text */}
+                        <View style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          backgroundColor: 'rgba(0,0,0,0.5)',
+                          borderBottomLeftRadius: 16,
+                          borderBottomRightRadius: 16,
+                          padding: 6,
+                        }}>
+                          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
+                            {item.title || 'Sans titre'}
+                          </Text>
+                          <Text style={{ color: '#ffd700', fontWeight: '600', fontSize: 12 }} numberOfLines={1}>
+                            {item.prix ? `${item.prix} ${item.currency || ''}` : 'Prix non spécifié'}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
 
-        {/* Section : Produits / Services */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>À découvrir</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {items.map((item, index) => (
-              <View key={index} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Image
-                  source={{ uri: item.image }}
-                  style={{ width: 170, height: 120, borderRadius: 16 }}
-                />
-                <Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.cardPrice, { color: colors.text }]}>{item.price}</Text>
+            ) : (
+              <View style={styles.noResultsContainer}>
+                <Text style={[styles.noResultsText, { color: colors.text }]}>
+                  Aucun résultat trouvé pour {searchQuery}
+                </Text>
               </View>
-            ))}
-          </ScrollView>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* --- NEW MODAL STRUCTURE --- */}
+      <Modal
+        visible={!!selectedItem}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedItem(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent,]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedItem && (
+                <>
+                  {/* Horizontal Image Slider */}
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.modalImageContainer}
+                  >
+                    {selectedItem.images?.length > 0 ? (
+                      selectedItem.images.map((photo: string, idx: number) => (
+                        <Image key={idx} source={{ uri: photo }} style={styles.modalImage} />
+                      ))
+                    ) : (
+                      // Fallback if there are no images
+                      <View style={styles.modalImagePlaceholder}>
+                        <Ionicons name="image-outline" size={80} color={colors.border} />
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  {/* Details Section */}
+                  <View style={styles.modalDetails}>
+                    <Text style={[styles.modalName, { color: colors.text }]}>{selectedItem.title}</Text>
+                    <Text style={[styles.modalPriceText, { color: colors.primary }]}>
+                      {selectedItem.prix ? `${selectedItem.prix} ${selectedItem.currency || ''}` : 'Prix non spécifié'}
+                    </Text>
+                    <Text style={[styles.modalDescription, { color: colors.text }]}>
+                      {selectedItem.description || 'Aucune description.'}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+
+            {/* Close Button */}
+            <TouchableOpacity style={styles.closeBtn} onPress={() => setSelectedItem(null)}>
+              <Ionicons name="close-circle" size={32} color={colors.text} />
+              
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
+      </Modal>
+      {/* --- END NEW MODAL STRUCTURE --- */}
     </ScrollView>
   );
 }
 
+// --- UPDATED STYLES FOR NEW MODAL ---
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, marginTop: 20,paddingBottom: 70,maxHeight:'80%' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent:'space-between',marginBottom: 16 },
-  headerTitle: { fontSize: 24, fontWeight: '700', marginLeft: 8 },
+  container: { flex: 1, padding: 16, marginTop: 20, paddingBottom: 70},
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -131,6 +261,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   searchInput: { flex: 1, fontSize: 16 },
+  btn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginRight: 10,
+  },
   categories: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -146,16 +283,48 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12 },
-  card: {
-    borderRadius: 20,
-    marginRight: 16,
-    padding: 12,
+  sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
+  card: { borderRadius: 20, marginRight: 16, padding: 12, borderWidth: 1, alignItems: 'center', width: 195 },
+  cardTitle: { fontSize: 16, fontWeight: '600', marginTop: 10 },
+  cardPrice: { fontSize: 14, marginTop: 4 },
+  noResultsContainer: {
+    height: 150,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginTop: 8 },
-  cardPrice: { fontSize: 14, marginTop: 4 },
-  btn: {paddingVertical:4,paddingHorizontal:8,borderRadius: 16,
+  noResultsText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  
+  // New Modal Styles
+ 
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 15, overflow: 'hidden', maxHeight: '85%' },
+  modalImage: { width: width - 40, height: 300, borderTopLeftRadius: 15, borderTopRightRadius: 15 },
+  modalDetails: { padding: 15 },
+  modalName: { fontSize: 20, fontWeight: '700' },
+  modalAge: { color: '#777', marginBottom: 8 },
+  modalNumero: { color: '#032D23', fontWeight: '600', marginBottom: 8 },
+  modalDescription: { fontSize: 15, color: '#444', marginBottom: 12 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  closeBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: '#fff', borderRadius: 20, padding: 6 },
+  modalImageContainer: {
+    height: 300, // Fixed height for the image slider part
+  },
+
+  modalImagePlaceholder: {
+    width: width,
+    height: 300,
+    justifyContent: 'center',
     alignItems: 'center',
-    margin: 5,}
+    backgroundColor: '#f0f0f0',
+  },
+
+  modalPriceText: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+
 });
