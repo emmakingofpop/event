@@ -58,6 +58,10 @@ export default function MainNavigator() {
         <Stack.Screen name="ProfileScreen" options={{ title: "" }} />
         <Stack.Screen name="ViewDetails" />
         <Stack.Screen name="ResetPasswordScreen" options={{ presentation: 'modal', title: 'ResetPasswordScreen' }} />
+        <Stack.Screen name="GererLikeScreen" options={{ presentation: 'modal', title: 'GererLikeScreen' }} />
+        <Stack.Screen name="GererAgentScanScreen" options={{ presentation: 'modal', title: 'GererAgentScanScreen' }} />
+        <Stack.Screen name="GererAbonnement" options={{ presentation: 'modal', title: 'GererAbonnement' }} />
+        <Stack.Screen name="gererFactureScreen" options={{ presentation: 'modal', title: 'gererFactureScreen' }} />
         <Stack.Screen name="AbonnementScreen" options={{ presentation: 'modal', title: 'AbonnementScreen' }} />
         <Stack.Screen name="ListeAbonnementScreen" options={{ presentation: 'modal', title: 'ListeAbonnementScreen' }} />
         <Stack.Screen name="FactureScreen" options={{ presentation: 'modal', title: 'FactureScreen' }} />

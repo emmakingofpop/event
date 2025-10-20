@@ -84,8 +84,8 @@ export default function HomeScreen() {
       <Header />
       <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TextInput
-          placeholder="Rechercher un produit ou service..."
-          placeholderTextColor={colors.text}
+          placeholder="Rechercher..."
+          placeholderTextColor={`gray`}
           style={[styles.searchInput, { color: colors.text }]}
           value={searchQuery}
           onChangeText={handleSearch}

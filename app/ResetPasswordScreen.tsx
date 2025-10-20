@@ -1,171 +1,255 @@
 import { resetPassword } from "@/services/UserService";
+import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Easing,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 
 export default function ResetPasswordScreen() {
+  const { colors } = useTheme();
+
+  // --- State Management ---
   const [phoneNumber, setPhoneNumber] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  // --- Inline Error State ---
+  const [phoneError, setPhoneError] = useState("");
+  const [newPasswordError, setNewPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
+  // --- Reanimated Values for Animations ---
+  const formOpacity = useSharedValue(0);
+  const formTranslateY = useSharedValue(50);
+
+  const formAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formTranslateY.value }],
+  }));
+
+  // --- Trigger Animation on Load ---
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    formOpacity.value = withDelay(100, withTiming(1, { duration: 600 }));
+    formTranslateY.value = withDelay(100, withTiming(0, { duration: 600 }));
   }, []);
 
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
+  // --- Reset Password Handler ---
   const handleReset = async () => {
-    if (!phoneNumber || !newPassword) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs.");
-      return;
+    Keyboard.dismiss();
+    let isValid = true;
+
+    // Reset all errors
+    setPhoneError("");
+    setNewPasswordError("");
+    setConfirmPasswordError("");
+
+    // --- Validation Logic ---
+    if (!phoneNumber.trim()) {
+      setPhoneError("Le numéro de téléphone est requis.");
+      isValid = false;
     }
+    if (newPassword.length < 6) {
+      setNewPasswordError("Le mot de passe doit contenir au moins 6 caractères.");
+      isValid = false;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setConfirmPasswordError("Les mots de passe ne correspondent pas.");
+      isValid = false;
+    }
+    if (!isValid) return;
 
     setIsLoading(true);
     try {
-      const user = await resetPassword(phoneNumber, newPassword);
-      setIsLoading(false);
-      if (user.success) {
-        
-        Alert.alert("Succès", "Mot de passe réinitialisé !");
-        router.replace("/(tabs)");
+      const response = await resetPassword(phoneNumber, newPassword);
+      if (response.success) {
+        Alert.alert(
+          "Succès",
+          "Votre mot de passe a été réinitialisé. Veuillez vous connecter.",
+          [{ text: "OK", onPress: () => router.replace("/LoginScreen") }]
+        );
       } else {
-        Alert.alert("Erreur", user.message);
+        Alert.alert("Erreur", response.message || "Impossible de réinitialiser le mot de passe.");
       }
     } catch (error: any) {
+      Alert.alert("Erreur", error.message || "Une erreur inattendue est survenue.");
+    } finally {
       setIsLoading(false);
-      Alert.alert("Erreur", error.message || "Échec de la réinitialisation.");
     }
   };
+
+  // Memoize styles for performance
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+      style={styles.container}
     >
-      <ImageBackground
-        source={require("../assets/images/bg.jpeg")}
-        style={styles.bg}
-        blurRadius={15}
-      >
-        <View style={styles.container}>
-          <View style={styles.card}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+          {/* --- Header --- */}
+          <Animated.View style={[styles.header, formAnimatedStyle]}>
+            <Feather name="refresh-cw" size={40} color={colors.primary} />
             <Text style={styles.title}>Réinitialiser le mot de passe</Text>
+            <Text style={styles.subtitle}>Entrez vos informations pour continuer</Text>
+          </Animated.View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="+243 97 000 0000"
-              placeholderTextColor="#ccc"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
+          {/* --- Form --- */}
+          <Animated.View style={[styles.form, formAnimatedStyle]}>
+            {/* Phone Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="phone" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="+243 970 000 000" placeholderTextColor={colors.border} keyboardType="phone-pad" value={phoneNumber} onChangeText={text => { setPhoneNumber(text); setPhoneError(""); }} />
+            </View>
+            {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
 
-            <TextInput
-              style={styles.input}
-              placeholder="Nouveau mot de passe"
-              placeholderTextColor="#ccc"
-              secureTextEntry
-              value={newPassword}
-              onChangeText={setNewPassword}
-            />
+            {/* New Password Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="lock" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Nouveau mot de passe" placeholderTextColor={colors.border} secureTextEntry={!isPasswordVisible} value={newPassword} onChangeText={text => { setNewPassword(text); setNewPasswordError(""); }} />
+              <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={styles.eyeIcon}>
+                <Feather name={isPasswordVisible ? "eye-off" : "eye"} size={20} color={colors.border} />
+              </TouchableOpacity>
+            </View>
+            {newPasswordError && <Text style={styles.errorText}>{newPasswordError}</Text>}
 
-            <TouchableOpacity style={styles.button} onPress={handleReset}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {isLoading && (
-                  <Animated.View style={{ transform: [{ rotate }] }}>
-                    <Svg width={30} height={30} viewBox="0 0 100 100">
-                      <Circle
-                        cx="50"
-                        cy="50"
-                        r="35"
-                        stroke="white"
-                        strokeWidth="10"
-                        strokeDasharray="164.9 56.97"
-                        fill="none"
-                      />
-                    </Svg>
-                  </Animated.View>
-                )}
-                <Text style={styles.buttonText}>Réinitialiser</Text>
-              </View>
+            {/* Confirm New Password Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="check-circle" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Confirmez le mot de passe" placeholderTextColor={colors.border} secureTextEntry={!isConfirmPasswordVisible} value={confirmNewPassword} onChangeText={text => { setConfirmNewPassword(text); setConfirmPasswordError(""); }} />
+              <TouchableOpacity onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} style={styles.eyeIcon}>
+                <Feather name={isConfirmPasswordVisible ? "eye-off" : "eye"} size={20} color={colors.border} />
+              </TouchableOpacity>
+            </View>
+            {confirmPasswordError && <Text style={styles.errorText}>{confirmPasswordError}</Text>}
+
+            {/* Reset Button */}
+            <TouchableOpacity style={styles.button} onPress={handleReset} disabled={isLoading}>
+              {isLoading ? <ActivityIndicator size="small" color={colors.background} /> : <Text style={styles.buttonText}>Réinitialiser</Text>}
             </TouchableOpacity>
+          </Animated.View>
 
-            <TouchableOpacity onPress={() => router.push("/LoginScreen")}>
+          {/* --- Footer Link to Login --- */}
+          <Animated.View style={[styles.footer, formAnimatedStyle]}>
+            <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.linkText}>
-                Retour à la connexion
+                Retour à la{" "}
+                <Text style={styles.linkTextBold}>Connexion</Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
-      </ImageBackground>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, width: "100%", height: "100%" },
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  card: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    padding: 28,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 28,
-    textAlign: "center",
-    color: "#fff",
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-    color: "#fff",
-  },
-  button: {
-    backgroundColor: "#032D23",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 18,
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16, letterSpacing: 0.5 },
-  linkText: { color: "#fff", textAlign: "center", fontSize: 14, opacity: 0.9 },
-});
+// ✨ Styles factory function for theming
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    innerContainer: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: 30,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.text,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: 16,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    form: {
+      width: "100%",
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      paddingHorizontal: 12,
+      marginTop: 16,
+    },
+    icon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      height: 50,
+      fontSize: 16,
+      color: colors.text,
+    },
+    eyeIcon: {
+      padding: 5,
+    },
+    errorText: {
+      color: colors.notification,
+      fontSize: 12,
+      marginLeft: 12,
+      marginTop: 4,
+    },
+    button: {
+      height: 50,
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 24,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 5,
+      elevation: 8,
+    },
+    buttonText: {
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+    footer: {
+      marginTop: 30,
+      alignItems: "center",
+    },
+    linkText: {
+      color: colors.border,
+      fontSize: 14,
+    },
+    linkTextBold: {
+      color: colors.primary,
+      fontWeight: "bold",
+    },
+  });

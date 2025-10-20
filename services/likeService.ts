@@ -9,6 +9,7 @@ export interface Like {
   uid: string;       // User who liked
   posteId: string;   // ID of the post/profile liked
   nbrelikes: number; // Number of likes
+  factNbre?:string;
 }
 
 export const LikeService = {
@@ -18,9 +19,8 @@ export const LikeService = {
       const docRef = doc(likesCollection);
       await setDoc(docRef, data);
       return { id: docRef.id, ...data };
-    } catch (error) {
-      console.error('Error creating like:', error);
-      throw error;
+    } catch {
+      
     }
   },
 
@@ -45,9 +45,22 @@ export const LikeService = {
       const likes: Like[] = [];
       querySnap.forEach((doc) => likes.push({ id: doc.id, ...doc.data() } as Like));
       return likes;
-    } catch (error) {
-      console.error('Error getting likes by posteId:', error);
-      throw error;
+    } catch {
+      return []
+    }
+  },
+
+  
+  // Read all likes for a posteId
+  async getLikesByfactNbre(factNbre: string,posteId: string) {
+    try {
+      const q = query(likesCollection, where('factNbre', '==', factNbre), where('posteId', '==', posteId));
+      const querySnap = await getDocs(q);
+      const likes: Like[] = [];
+      querySnap.forEach((doc) => likes.push({ id: doc.id, ...doc.data() } as Like));
+      return likes;
+    } catch {
+      return []
     }
   },
 
@@ -57,9 +70,8 @@ export const LikeService = {
       const docRef = doc(likesCollection, id);
       await updateDoc(docRef, data);
       return { id, ...data };
-    } catch (error) {
-      console.error('Error updating like:', error);
-      throw error;
+    } catch {
+      
     }
   },
 
@@ -68,9 +80,8 @@ export const LikeService = {
     try {
       await deleteDoc(doc(likesCollection, id));
       return true;
-    } catch (error) {
-      console.error('Error deleting like:', error);
-      throw error;
+    } catch {
+      return false;
     }
   },
 

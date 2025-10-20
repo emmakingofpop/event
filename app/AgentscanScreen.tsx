@@ -34,59 +34,59 @@ const AgentscanScreen = () => {
               
               setData(res);
             }
-          } catch (error) {
-            console.error(error);
+          } catch {
+         
           }
         };
         getArticlesByCategori();
       }, []);
 
       const handleSubmit = async () => {
-  if (!user || !user.uid) {
-    Alert.alert("Erreur", "Vous devez être connecté pour postuler.");
-    return;
-  }
+          if (!user || !user.uid) {
+            Alert.alert("Erreur", "Vous devez être connecté pour postuler.");
+            return;
+          }
 
-  if (!id || !typeselected) {
-    Alert.alert("Erreur", "Veuillez sélectionner un événement et un type.");
-    return;
-  }
+          if (!id || !typeselected) {
+            Alert.alert("Erreur", "Veuillez sélectionner un événement et un type.");
+            return;
+          }
 
-  setIsLoading(true);
-  try {
-    // Vérifie si l’agent existe déjà (même uid + eventId)
-    const existing = await getAgentsSanByEventId(user.uid, id);
+          setIsLoading(true);
+          try {
+            // Vérifie si l’agent existe déjà (même uid + eventId)
+            const existing = await getAgentsSanByEventId(user.uid, id);
 
-    if (existing.length > 0) {
-      // 🔄 Mettre à jour l'enregistrement existant
-      const agent = existing[0];
-      if (agent.state !== "no actif") {
-        const agentId = agent.id;
-        await updateAgentSan(agentId, {
-            categorie: souscategorie || typeselected,
-            state: "no actif",
-        });
-        Alert.alert("Succès", "Votre candidature a été mise à jour avec succès !");
-      }else{
-        Alert.alert("Succès", "Attend l'activation");
-      }
-    } else {
-      // 🆕 Créer un nouvel agent
-      await createAgentSan({
-        uid: user.uid,
-        eventId: id,
-        categorie: souscategorie || typeselected,
-        state: "no actif",
-      });
-      Alert.alert("Succès", "Votre candidature a été envoyée avec succès !");
-    }
-  } catch (error) {
-    console.error("Erreur dans handleSubmit:", error);
-    Alert.alert("Erreur", "Une erreur est survenue. Veuillez réessayer.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+            if (existing.length > 0) {
+              // 🔄 Mettre à jour l'enregistrement existant
+              const agent = existing[0];
+              if (agent.state !== "no actif") {
+                const agentId = agent.id;
+                await updateAgentSan(agentId, {
+                    categorie: souscategorie || typeselected,
+                    state: "no actif",
+                });
+                Alert.alert("Succès", "Votre candidature a été mise à jour avec succès !");
+              }else{
+                Alert.alert("Succès", "Attend l'activation");
+              }
+            } else {
+              // 🆕 Créer un nouvel agent
+              await createAgentSan({
+                uid: user.uid,
+                eventId: id,
+                categorie: souscategorie || typeselected,
+                state: "no actif",
+              });
+              Alert.alert("Succès", "Votre candidature a été envoyée avec succès !");
+            }
+          } catch (error) {
+            console.error("Erreur dans handleSubmit:", error);
+            Alert.alert("Erreur", "Une erreur est survenue. Veuillez réessayer.");
+          } finally {
+            setIsLoading(false);
+          }
+      };
 
 
   return (

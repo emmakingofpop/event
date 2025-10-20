@@ -59,6 +59,7 @@ export default function Profile() {
     const getProfileById = async (uid: string) => {
       try {
         const res = await getProfileByUid(uid);
+        console.log(res)
         if (res && res.length > 0) {
           const data = res[0];
           setId(data.id);

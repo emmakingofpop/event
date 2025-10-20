@@ -1,184 +1,270 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { signup } from "@/services/UserService";
+import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Animated,
-  Easing,
-  ImageBackground,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 
 export default function SignUpScreen() {
+  const { login } = useAuth();
+  const { colors } = useTheme();
+
+  // --- State Management ---
   const [username, setUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-    const {login,user} = useAuth()
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  // --- Inline Error State ---
+  const [usernameError, setUsernameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
+  // --- Reanimated Values for Animations ---
+  const formOpacity = useSharedValue(0);
+  const formTranslateY = useSharedValue(50);
+
+  const formAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formTranslateY.value }],
+  }));
+
+  // --- Trigger Animation on Load ---
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    formOpacity.value = withDelay(100, withTiming(1, { duration: 600 }));
+    formTranslateY.value = withDelay(100, withTiming(0, { duration: 600 }));
   }, []);
 
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
+  // --- Sign Up Handler ---
   const handleSignUp = async () => {
-    if (!username || !phoneNumber || !password) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs.");
-      return;
+    Keyboard.dismiss();
+    let isValid = true;
+
+    // Reset all errors
+    setUsernameError("");
+    setPhoneError("");
+    setPasswordError("");
+    setConfirmPasswordError("");
+
+    // --- Validation Logic ---
+    if (!username.trim()) {
+      setUsernameError("Le nom d'utilisateur est requis.");
+      isValid = false;
     }
+    if (!phoneNumber.trim()) {
+      setPhoneError("Le numéro de téléphone est requis.");
+      isValid = false;
+    }
+    if (password.length < 6) {
+      setPasswordError("Le mot de passe doit contenir au moins 6 caractères.");
+      isValid = false;
+    }
+    if (password !== confirmPassword) {
+      setConfirmPasswordError("Les mots de passe ne correspondent pas.");
+      isValid = false;
+    }
+    if (!isValid) return;
 
     setIsLoading(true);
     try {
       const user = await signup(username, phoneNumber, password);
-      setIsLoading(false);
       if (user.success) {
-        await login(user)
-        Alert.alert("Succès", "Compte créé avec succès !");
-        router.replace("/(tabs)");
-      }else{
-        Alert.alert("Erreur", user.message);
+        await login(user);
+        Alert.alert("Bienvenue !", "Votre compte a été créé avec succès.");
+        router.replace("/(tabs)/profile"); // Redirect to profile to complete it
+      } else {
+        Alert.alert("Erreur d'inscription", user.message);
       }
-      
     } catch (error: any) {
-      setIsLoading(false);
       Alert.alert("Erreur", error.message || "Échec de la création du compte.");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Memoize styles for performance
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
+      style={styles.container}
     >
-      <ImageBackground
-        source={require("../assets/images/bg.jpeg")}
-        style={styles.bg}
-        blurRadius={15}
-      >
-        <View style={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Créer un compte</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+          {/* --- Header --- */}
+          <Animated.View style={[styles.header, formAnimatedStyle]}>
+            <Feather name="user-plus" size={40} color={colors.primary} />
+            <Text style={styles.title}>Créez votre compte</Text>
+            <Text style={styles.subtitle}>Rejoignez-nous en quelques étapes</Text>
+          </Animated.View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Nom d'utilisateur"
-              placeholderTextColor="#ccc"
-              value={username}
-              onChangeText={setUsername}
-            />
+          {/* --- Form --- */}
+          <Animated.View style={[styles.form, formAnimatedStyle]}>
+            {/* Username Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="user" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Nom d'utilisateur" placeholderTextColor={colors.border} value={username} onChangeText={text => { setUsername(text); setUsernameError(""); }} />
+            </View>
+            {usernameError && <Text style={styles.errorText}>{usernameError}</Text>}
 
-            <TextInput
-              style={styles.input}
-              placeholder="+243 97 000 0000"
-              placeholderTextColor="#ccc"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
+            {/* Phone Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="phone" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="+243 970 000 000" placeholderTextColor={colors.border} keyboardType="phone-pad" value={phoneNumber} onChangeText={text => { setPhoneNumber(text); setPhoneError(""); }} />
+            </View>
+            {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
 
-            <TextInput
-              style={styles.input}
-              placeholder="Mot de passe"
-              placeholderTextColor="#ccc"
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            {/* Password Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="lock" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Mot de passe" placeholderTextColor={colors.border} secureTextEntry={!isPasswordVisible} value={password} onChangeText={text => { setPassword(text); setPasswordError(""); }} />
+              <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={styles.eyeIcon}>
+                <Feather name={isPasswordVisible ? "eye-off" : "eye"} size={20} color={colors.border} />
+              </TouchableOpacity>
+            </View>
+            {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
 
-            <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {isLoading && (
-                  <Animated.View style={{ transform: [{ rotate }] }}>
-                    <Svg width={30} height={30} viewBox="0 0 100 100">
-                      <Circle
-                        cx="50"
-                        cy="50"
-                        r="35"
-                        stroke="white"
-                        strokeWidth="10"
-                        strokeDasharray="164.9 56.97"
-                        fill="none"
-                      />
-                    </Svg>
-                  </Animated.View>
-                )}
-                <Text style={styles.buttonText}>S’inscrire</Text>
-              </View>
+             {/* Confirm Password Input */}
+            <View style={styles.inputContainer}>
+              <Feather name="check-circle" size={20} color={colors.primary} style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Confirmez le mot de passe" placeholderTextColor={colors.border} secureTextEntry={!isConfirmPasswordVisible} value={confirmPassword} onChangeText={text => { setConfirmPassword(text); setConfirmPasswordError(""); }} />
+               <TouchableOpacity onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} style={styles.eyeIcon}>
+                <Feather name={isConfirmPasswordVisible ? "eye-off" : "eye"} size={20} color={colors.border} />
+              </TouchableOpacity>
+            </View>
+            {confirmPasswordError && <Text style={styles.errorText}>{confirmPasswordError}</Text>}
+
+
+            {/* SignUp Button */}
+            <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={isLoading}>
+              {isLoading ? <ActivityIndicator size="small" color={colors.background} /> : <Text style={styles.buttonText}>S’inscrire</Text>}
             </TouchableOpacity>
+          </Animated.View>
 
+          {/* --- Footer Link to Login --- */}
+          <Animated.View style={[styles.footer, formAnimatedStyle]}>
             <TouchableOpacity onPress={() => router.push("/LoginScreen")}>
               <Text style={styles.linkText}>
                 Vous avez déjà un compte ?{" "}
-                <Text style={{ fontWeight: "600" }}>Connexion</Text>
+                <Text style={styles.linkTextBold}>Connectez-vous</Text>
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
-      </ImageBackground>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, width: "100%", height: "100%" },
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  card: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    padding: 28,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 28,
-    textAlign: "center",
-    color: "#fff",
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-    color: "#fff",
-  },
-  button: {
-    backgroundColor: "#032D23",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 18,
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16, letterSpacing: 0.5 },
-  linkText: { color: "#fff", textAlign: "center", fontSize: 14, opacity: 0.9 },
-});
+// ✨ Styles factory function for theming
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    innerContainer: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 24,
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: 30,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.text,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    subtitle: {
+      fontSize: 16,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    form: {
+      width: "100%",
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      paddingHorizontal: 12,
+      marginTop: 16,
+    },
+    icon: {
+      marginRight: 10,
+    },
+    input: {
+      flex: 1,
+      height: 50,
+      fontSize: 16,
+      color: colors.text,
+    },
+    eyeIcon: {
+      padding: 5,
+    },
+    errorText: {
+      color: colors.notification,
+      fontSize: 12,
+      marginLeft: 12,
+      marginTop: 4,
+    },
+    button: {
+      height: 50,
+      backgroundColor: colors.primary,
+      borderRadius: 14,
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: 24,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 5,
+      elevation: 8,
+    },
+    buttonText: {
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+    footer: {
+      marginTop: 30,
+      alignItems: "center",
+    },
+    linkText: {
+      color: colors.border,
+      fontSize: 14,
+    },
+    linkTextBold: {
+      color: colors.primary,
+      fontWeight: "bold",
+    },
+  });

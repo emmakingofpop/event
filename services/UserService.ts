@@ -18,6 +18,7 @@ export interface User {
   username: string;
   phoneNumber: string;
   password: string;
+  role:string
   createdAt?: Date;
 }
 
@@ -37,6 +38,7 @@ export const signup = async (username: string, phoneNumber: string, password: st
       username,
       phoneNumber,
       password,
+      role:'no admin',
       createdAt: new Date(),
     });
 
@@ -70,6 +72,7 @@ export const logins = async (phoneNumber: string, password: string) => {
       uid: userDoc.id,
       username: userData.username,
       phoneNumber: userData.phoneNumber,
+      role: userData.role,
       message: "Connexion réussie.",
     };
   } catch {

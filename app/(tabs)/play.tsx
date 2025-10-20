@@ -4,13 +4,15 @@ import Slider from '@react-native-community/slider';
 import { useTheme } from '@react-navigation/native';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import * as Sharing from 'expo-sharing'; // NOUVEAU: Pour simuler l'ouverture/le partage du fichier
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   ListRenderItemInfo,
+  Modal,
   RefreshControl,
   SafeAreaView,
   StyleSheet,
@@ -19,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Progress from 'react-native-progress'; // NOUVEAU: Pour l'affichage de la barre de progression
 import { checkActiveAbonnement } from '../../services/AbonnementServices';
 import MusiqueService from '../../services/MusiqueService';
 
@@ -31,6 +34,71 @@ interface Song {
   albumArtUrl: string;
 }
 
+// Interface for tracking download status
+interface DownloadStatus {
+  isDownloading: boolean;
+  progress: number; // 0 to 1
+  isDownloaded: boolean;
+}
+
+// --- NOUVEAU COMPOSANT : MODALE DE SUCCÈS DE TÉLÉCHARGEMENT ---
+interface DownloadSuccessModalProps {
+    visible: boolean;
+    onClose: () => void;
+    musicTitle: string;
+    filePath: string | null;
+}
+
+const DownloadSuccessModal: React.FC<DownloadSuccessModalProps> = ({ visible, onClose, musicTitle, filePath }) => {
+    
+    // Simuler l'ouverture du fichier (en réalité, cela utilise l'API de partage d'Expo)
+    const handleOpenFile = async () => {
+        if (filePath && await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(filePath);
+        } else {
+            Alert.alert("Action non disponible", "Le partage de fichiers n'est pas supporté sur cet appareil ou le chemin du fichier est introuvable.");
+        }
+        onClose();
+    };
+
+    return (
+        <Modal
+            animationType="fade"
+            transparent={true}
+            visible={visible}
+            onRequestClose={onClose}
+        >
+            <View style={modalStyles.centeredView}>
+                <View style={modalStyles.modalView}>
+                    <Ionicons name="cloud-done-outline" size={60} color="#4CAF50" />
+                    <Text style={modalStyles.modalTitle}>Téléchargement Terminé !</Text>
+                    <Text style={modalStyles.modalText}>
+                        La musique {musicTitle} a été enregistrée. Vous pouvez l'écouter hors ligne.
+                    </Text>
+                    
+                    <View style={modalStyles.buttonContainer}>
+                        <TouchableOpacity
+                            style={[modalStyles.button, { backgroundColor: '#2196F3', marginRight: 10 }]}
+                            onPress={handleOpenFile}
+                        >
+                            <Text style={modalStyles.buttonText}>Écouter</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[modalStyles.button, { backgroundColor: '#f44336' }]}
+                            onPress={onClose}
+                        >
+                            <Text style={modalStyles.buttonText}>Fermer</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+// --- FIN MODALE ---
+
+
 const Play = () => {
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -41,17 +109,18 @@ const Play = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasActiveAbonnement, setHasActiveAbonnement] = useState(false);
+  
+  const [downloadStatuses, setDownloadStatuses] = useState<Map<string | number, DownloadStatus>>(new Map());
+
+  // NOUVEAU ÉTAT: Pour la modale de succès
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalData, setModalData] = useState<{ title: string, path: string | null }>({ title: '', path: null });
+
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackStatus, setPlaybackStatus] = useState<AVPlaybackStatus | null>(null);
 
-  // Charger l'abonnement et les musiques
-  useEffect(() => {
-    checkAbonnementAndLoad();
-    return () => {
-      soundRef.current?.unloadAsync();
-    };
-  }, []);
+  // ... (checkAbonnementAndLoad, onPlaybackStatusUpdate, loadMusics, handleRefresh, handleSearch are unchanged)
 
   const checkAbonnementAndLoad = async () => {
     if (!user?.uid) {
@@ -66,7 +135,7 @@ const Play = () => {
       if (active) {
         await loadMusics();
       }
-    } catch  {
+    } catch {
       Alert.alert('Erreur', "Impossible de vérifier l'abonnement.");
     } finally {
       setIsLoading(false);
@@ -95,6 +164,7 @@ const Play = () => {
       setMusics(formattedData);
       setFilteredMusics(formattedData);
       if (formattedData.length > 0 && !currentMusic) setCurrentMusic(formattedData[0]);
+
     } catch (error) {
       console.error('Erreur lors du chargement des musiques:', error);
     } finally {
@@ -130,7 +200,7 @@ const Play = () => {
         return;
       }
 
-      const hasActive = await checkActiveAbonnement(user.uid, 'Musique');
+      const hasActive = await checkActiveAbonnement(user.uid, 'Streaming');
       if (!hasActive) {
         Alert.alert('Abonnement requis', 'Vous devez avoir un abonnement actif pour écouter la musique.');
         return;
@@ -201,19 +271,102 @@ const Play = () => {
     }
   };
 
-  const renderSongItem = ({ item, index }: ListRenderItemInfo<Song>) => (
-    <TouchableOpacity onPress={() => playMusicWithAbonnementCheck(item)}>
-      <View style={styles(colors).songItemContainer}>
-        <Text style={styles(colors).songItemNumber}>{String(index + 1).padStart(2, '0')}</Text>
-        <Image source={{ uri: item.albumArtUrl }} style={styles(colors).songItemArt} />
-        <View style={styles(colors).songItemInfo}>
-          <Text style={styles(colors).songItemTitle} numberOfLines={1}>{item.titre}</Text>
-          <Text style={styles(colors).songItemArtist}>{item.artist}</Text>
+  // --- MISE À JOUR DE LA FONCTION handleDownload ---
+  const handleDownload = async (music: Song) => {
+    if (!hasActiveAbonnement) {
+      Alert.alert('Abonnement requis', 'Vous devez avoir un abonnement actif pour télécharger la musique.');
+      return;
+    }
+
+    const songId = music.id;
+    
+    setDownloadStatuses(prev => new Map(prev).set(songId, { isDownloading: true, progress: 0, isDownloaded: false }));
+
+    const onProgressUpdate = (progress: number) => {
+      setDownloadStatuses(prev => {
+        const current = prev.get(songId) || { isDownloading: true, progress: 0, isDownloaded: false };
+        return new Map(prev).set(songId, { ...current, progress: progress });
+      });
+    };
+    
+    const fileName = `${music.titre.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+
+    try {
+      // Assurez-vous que MusiqueService.downloadMusicLocally retourne le chemin du fichier (URI)
+      const result = await MusiqueService.downloadMusicLocally(music.url, fileName, onProgressUpdate);
+      
+      setDownloadStatuses(prev => new Map(prev).set(songId, { 
+        isDownloading: false, 
+        progress: 1, 
+        isDownloaded: true 
+      }));
+
+      if (!result.alreadyExists) {
+        // Afficher la modale de succès
+        setModalData({ title: music.titre, path: result.uri }); // Supposant que result.uri est le chemin
+        setModalVisible(true);
+      } else {
+         setModalData({ title: music.titre, path: result.uri }); // Supposant que result.uri est le chemin
+          setModalVisible(true);
+      }
+      
+    } catch (error) {
+      console.error('Erreur de téléchargement:', error);
+      Alert.alert('Erreur de téléchargement', `Impossible de télécharger "${music.titre}".`);
+      
+      setDownloadStatuses(prev => new Map(prev).set(songId, { isDownloading: false, progress: 0, isDownloaded: false }));
+    }
+  };
+
+
+  // --- MISE À JOUR DE LA FONCTION renderSongItem ---
+  const renderSongItem = ({ item, index }: ListRenderItemInfo<Song>) => {
+    const status = downloadStatuses.get(item.id) || { isDownloading: false, progress: 0, isDownloaded: false };
+    
+    return (
+      <TouchableOpacity onPress={() => playMusicWithAbonnementCheck(item)}>
+        <View style={styles(colors).songItemContainer}>
+          <Text style={styles(colors).songItemNumber}>{String(index + 1).padStart(2, '0')}</Text>
+          <Image source={{ uri: item.albumArtUrl }} style={styles(colors).songItemArt} />
+          <View style={styles(colors).songItemInfo}>
+            <Text style={styles(colors).songItemTitle} numberOfLines={1}>{item.titre}</Text>
+            <Text style={styles(colors).songItemArtist}>{item.artist}</Text>
+          </View>
+
+          {/* Download Button with Progress */}
+          <View style={styles(colors).downloadButton}>
+            {status.isDownloading ? (
+              <View style={styles(colors).downloadProgressContainer}>
+                <Progress.Circle 
+                    progress={status.progress} 
+                    size={30} 
+                    thickness={3} 
+                    color={colors.primary} 
+                    unfilledColor="#ddd"
+                    borderWidth={0}
+                />
+                <Text style={styles(colors).progressText}>{Math.round(status.progress * 100)}%</Text>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                onPress={() => handleDownload(item)}
+                style={styles(colors).iconButton}
+                disabled={!status.isDownloaded || !hasActiveAbonnement}
+              >
+                <Ionicons 
+                  name={status.isDownloaded ? "checkmark-circle" : "cloud-download-outline"} 
+                  size={24} 
+                  color={status.isDownloaded ? "green" : colors.primary} 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Ionicons name="play-circle-outline" size={26} color={colors.primary} style={{marginLeft: 10}} />
         </View>
-        <Ionicons name="musical-notes" size={22} color={colors.primary} />
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <LinearGradient colors={['#fff', '#fce8ed', '#fee2e9']} style={styles(colors).container}>
@@ -224,7 +377,7 @@ const Play = () => {
             <TouchableOpacity onPress={handleRefresh}>
               <Ionicons name="refresh" size={24} color={colors.primary} />
             </TouchableOpacity>
-          ):(
+          ) : (
             <TouchableOpacity onPress={()=>checkAbonnementAndLoad()}>
               <Ionicons name="refresh" size={24} color={colors.primary} />
             </TouchableOpacity>
@@ -251,7 +404,7 @@ const Play = () => {
         ) : hasActiveAbonnement ? (
           <>
             <View style={styles(colors).nowPlayingSection}>
-              <Text style={styles(colors).songTitle}>{currentMusic?.titre || 'Aucune musique sélectionnée'}</Text>
+              <Text style={styles(colors).songTitle} numberOfLines={1}>{currentMusic?.titre || 'Aucune musique sélectionnée'}</Text>
               <Text style={styles(colors).songArtist}>{currentMusic?.artist || ''}</Text>
               <Slider
                 style={styles(colors).slider}
@@ -297,6 +450,14 @@ const Play = () => {
           </View>
         )}
       </SafeAreaView>
+      
+      {/* MODALE DE TÉLÉCHARGEMENT */}
+      <DownloadSuccessModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        musicTitle={modalData.title}
+        filePath={modalData.path}
+      />
     </LinearGradient>
   );
 };
@@ -361,6 +522,89 @@ const styles = (colors: any) =>
     songItemArtist: { fontSize: 14, color: 'gray' },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 },
     loadingText: { marginTop: 10, color: '#666', fontSize: 16 },
+    // STYLES MISE À JOUR pour le bouton de téléchargement avec progression
+    downloadButton: {
+      width: 45, // Augmenté pour accueillir le cercle de progression
+      height: 45,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    downloadProgressContainer: {
+        position: 'relative',
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    progressText: {
+        position: 'absolute',
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: colors.primary,
+    },
+    iconButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    }
   });
+
+
+// --- STYLES SPÉCIFIQUES À LA MODALE ---
+const modalStyles = StyleSheet.create({
+    centeredView: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Fond semi-transparent
+    },
+    modalView: {
+        margin: 20,
+        backgroundColor: "white",
+        borderRadius: 20,
+        padding: 35,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        marginTop: 15,
+        marginBottom: 10,
+        color: '#333',
+    },
+    modalText: {
+        marginBottom: 20,
+        textAlign: "center",
+        fontSize: 16,
+        color: '#666',
+    },
+    buttonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+    },
+    button: {
+        borderRadius: 10,
+        padding: 10,
+        elevation: 2,
+        flex: 1,
+    },
+    buttonText: {
+        color: "white",
+        fontWeight: "bold",
+        textAlign: "center",
+        fontSize: 14,
+    }
+});
+
 
 export default Play;

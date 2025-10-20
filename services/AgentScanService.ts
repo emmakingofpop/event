@@ -1,13 +1,13 @@
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    updateDoc,
-    where
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  where
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
@@ -34,7 +34,7 @@ export const createAgentSan = async (agentData: {
 /**
  * Récupère tous les agents ou filtre par eventId
  */
-export const getAgentsSan = async (eventId?: string) => {
+export const getAgentsSan = async (eventId?: string): Promise<any> => {
   try {
 
     let col = collection(db, AGENT_COLLECTION);
@@ -42,9 +42,7 @@ export const getAgentsSan = async (eventId?: string) => {
     
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error("Erreur lors de la récupération des agents :", error);
-    throw error;
+  } catch  {
   }
 };
 
@@ -90,9 +88,8 @@ export const updateAgentSan = async (id: string, updates: Partial<{
     const docRef = doc(db, AGENT_COLLECTION, id);
     await updateDoc(docRef, updates);
     return true;
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour de l’agent :", error);
-    throw error;
+  } catch  {
+
   }
 };
 

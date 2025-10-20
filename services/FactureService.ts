@@ -1,17 +1,17 @@
 import { db } from "@/services/firebaseConfig";
 import { Facture } from "@/type/type";
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 
 
@@ -72,6 +72,43 @@ export const FactureService = {
       return [];
     }
   },
+
+  
+  /**
+   * 🔸 Récupérer toutes les factures d’un utilisateur
+   */
+  async getFacturesByfactureNumberfactureNumber(factureNumber: string): Promise<Facture[]> {
+    try {
+      const q = query(facturesCollection, where("factureNumber", "==", factureNumber));
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as Facture[];
+    } catch {
+      return [];
+    }
+  },
+
+
+  async getAllFactures(): Promise<Facture[]> {
+    try {
+      // Query without the 'where' clause to get all documents
+      const q = query(facturesCollection, orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as Facture[];
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération de toutes les factures :",
+        error
+      );
+      return [];
+    }
+  },
+
 
   /**
    * 🔸 Récupérer une facture par son ID

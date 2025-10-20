@@ -12,6 +12,7 @@ export interface Facture {
   factureNumber: string;
   posteId: string;
   scanned: boolean;
+  total?: number;
   etat: "payée" | "en attente" | "annulée";
   items: FactureItem[];
   createdAt?: Date;
