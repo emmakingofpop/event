@@ -77,9 +77,24 @@ export const FactureService = {
   /**
    * 🔸 Récupérer toutes les factures d’un utilisateur
    */
+
   async getFacturesByfactureNumberfactureNumber(factureNumber: string): Promise<Facture[]> {
     try {
       const q = query(facturesCollection, where("factureNumber", "==", factureNumber));
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      })) as Facture[];
+    } catch {
+      return [];
+    }
+  },
+
+  
+  async getFacturesByPostId(uid:string,posteId:string): Promise<Facture[]> {
+    try {
+      const q = query(facturesCollection, where("uid", "==", uid), where("posteId", "==", posteId));
       const snap = await getDocs(q);
       return snap.docs.map((docSnap) => ({
         id: docSnap.id,

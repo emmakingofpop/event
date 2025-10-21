@@ -1,16 +1,19 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { FactureService } from '@/services/FactureService';
+import { tel } from '@/type/type';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { useTheme } from '@react-navigation/native';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing'; // NOUVEAU: Pour simuler l'ouverture/le partage du fichier
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Linking,
   ListRenderItemInfo,
   Modal,
   RefreshControl,
@@ -19,11 +22,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import * as Progress from 'react-native-progress'; // NOUVEAU: Pour l'affichage de la barre de progression
 import { checkActiveAbonnement } from '../../services/AbonnementServices';
 import MusiqueService from '../../services/MusiqueService';
+import Header from '../components/header';
 
 interface Song {
   id: string | number;
@@ -73,7 +77,7 @@ const DownloadSuccessModal: React.FC<DownloadSuccessModalProps> = ({ visible, on
                     <Ionicons name="cloud-done-outline" size={60} color="#4CAF50" />
                     <Text style={modalStyles.modalTitle}>Téléchargement Terminé !</Text>
                     <Text style={modalStyles.modalText}>
-                        La musique {musicTitle} a été enregistrée. Vous pouvez l'écouter hors ligne.
+                        La musique {musicTitle} a été enregistrée. Vous pouvez l‘écouter hors ligne.
                     </Text>
                     
                     <View style={modalStyles.buttonContainer}>
@@ -120,6 +124,13 @@ const Play = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackStatus, setPlaybackStatus] = useState<AVPlaybackStatus | null>(null);
 
+
+  useEffect(() => {
+    checkAbonnementAndLoad()
+  
+  }, [])
+  
+
   // ... (checkAbonnementAndLoad, onPlaybackStatusUpdate, loadMusics, handleRefresh, handleSearch are unchanged)
 
   const checkAbonnementAndLoad = async () => {
@@ -165,8 +176,7 @@ const Play = () => {
       setFilteredMusics(formattedData);
       if (formattedData.length > 0 && !currentMusic) setCurrentMusic(formattedData[0]);
 
-    } catch (error) {
-      console.error('Erreur lors du chargement des musiques:', error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -207,8 +217,7 @@ const Play = () => {
       }
 
       await playMusic(music);
-    } catch (error) {
-      console.error('Erreur abonnement :', error);
+    } catch  {
       Alert.alert('Erreur', "Impossible de vérifier l'abonnement.");
     }
   };
@@ -233,8 +242,7 @@ const Play = () => {
       soundRef.current = sound;
       setCurrentMusic(music);
       setIsPlaying(true);
-    } catch (error) {
-      console.error('Erreur de lecture:', error);
+    } catch {
     }
   };
 
@@ -271,14 +279,69 @@ const Play = () => {
     }
   };
 
+  
+    // 🔹 Fonction d’envoi de message WhatsApp
+    const handleWhatsApp = (phone: string, message: string) => {
+      if (!phone) return;
+      const cleaned = phone.replace(/\s+/g, "");
+      const formatted = cleaned.startsWith("0") ? `243${cleaned.slice(1)}` : cleaned;
+  
+      const encodedMessage = encodeURIComponent(message || "");
+      const url = `https://wa.me/${formatted}?text=${encodedMessage}`;
+      Linking.openURL(url).catch(() => Alert.alert("Cannot open WhatsApp"));
+    };
+
+    const facture = async (music:Song) => {
+      try {
+        
+        const factureId = await FactureService.createFacture({
+          uid: user?.uid,
+          etat: "en attente",
+          posteId: music.id?.toString() || "",
+          scanned: false,
+          items: [{ id: "1", nom: "payée pour la musique : "+music.titre, quantite: 1, prix: 0 }],
+        });
+        return factureId;
+      } catch  {
+        return null
+      }
+    }
+
+    // call getFacturesByPostId
+    const getFacturesByPostId = async (uid: string,songId: string) => {
+      try {
+        const res = await FactureService.getFacturesByPostId(uid,songId)
+        if(res.length > 0) return res[0]
+      } catch {
+        return null
+      }
+    }
+
   // --- MISE À JOUR DE LA FONCTION handleDownload ---
   const handleDownload = async (music: Song) => {
-    if (!hasActiveAbonnement) {
-      Alert.alert('Abonnement requis', 'Vous devez avoir un abonnement actif pour télécharger la musique.');
+    const songId = music.id?.toString();
+
+    const getTel = await getFacturesByPostId(user?.uid,songId)
+
+    
+    if (!getTel) {
+      const newFact = await facture(music)
+      if (newFact) {
+         const message = `🎵 Bonjour! je voudrais payée la facture N° ${newFact} pour la musique "${music.titre}" merci.`;
+         handleWhatsApp(tel || "243000000000", message);
+      }
       return;
     }
 
-    const songId = music.id;
+    
+    if (getTel?.etat !== 'payée' ) {
+      const message = `🎵 Bonjour! Ma facture N° ${getTel?.factureNumber} pour la musique "${music.titre}" est toujour en attente.`;
+      handleWhatsApp(tel || "243000000000", message);
+      return;
+    }
+
+
+    
     
     setDownloadStatuses(prev => new Map(prev).set(songId, { isDownloading: true, progress: 0, isDownloaded: false }));
 
@@ -303,20 +366,25 @@ const Play = () => {
 
       if (!result.alreadyExists) {
         // Afficher la modale de succès
+        
         setModalData({ title: music.titre, path: result.uri }); // Supposant que result.uri est le chemin
         setModalVisible(true);
       } else {
+        console.log(result.uri)
          setModalData({ title: music.titre, path: result.uri }); // Supposant que result.uri est le chemin
           setModalVisible(true);
       }
       
-    } catch (error) {
-      console.error('Erreur de téléchargement:', error);
+    } catch {
       Alert.alert('Erreur de téléchargement', `Impossible de télécharger "${music.titre}".`);
       
       setDownloadStatuses(prev => new Map(prev).set(songId, { isDownloading: false, progress: 0, isDownloaded: false }));
     }
   };
+
+  const deleteLocally = async (uri:any) => {
+    await MusiqueService.deletLocally(uri)
+  }
 
 
   // --- MISE À JOUR DE LA FONCTION renderSongItem ---
@@ -324,7 +392,7 @@ const Play = () => {
     const status = downloadStatuses.get(item.id) || { isDownloading: false, progress: 0, isDownloaded: false };
     
     return (
-      <TouchableOpacity onPress={() => playMusicWithAbonnementCheck(item)}>
+      
         <View style={styles(colors).songItemContainer}>
           <Text style={styles(colors).songItemNumber}>{String(index + 1).padStart(2, '0')}</Text>
           <Image source={{ uri: item.albumArtUrl }} style={styles(colors).songItemArt} />
@@ -351,7 +419,7 @@ const Play = () => {
               <TouchableOpacity 
                 onPress={() => handleDownload(item)}
                 style={styles(colors).iconButton}
-                disabled={!status.isDownloaded || !hasActiveAbonnement}
+                
               >
                 <Ionicons 
                   name={status.isDownloaded ? "checkmark-circle" : "cloud-download-outline"} 
@@ -361,17 +429,26 @@ const Play = () => {
               </TouchableOpacity>
             )}
           </View>
-          
-          <Ionicons name="play-circle-outline" size={26} color={colors.primary} style={{marginLeft: 10}} />
+          <TouchableOpacity onPress={() => playMusicWithAbonnementCheck(item)}>
+            <Ionicons name="play-circle-outline" size={26} color={colors.primary} style={{marginLeft: 10}} />
+          </TouchableOpacity>
+{/* 
+            <TouchableOpacity onPress={() => deleteLocally("file:///data/user/0/host.exp.exponent/files/musics/Michael_Jackson_.mp3")}>
+              <Text>Delete</Text>
+            </TouchableOpacity>
+           */}
+
         </View>
-      </TouchableOpacity>
+      
     );
   };
 
   return (
     <LinearGradient colors={['#fff', '#fce8ed', '#fee2e9']} style={styles(colors).container}>
       <SafeAreaView style={{ flex: 1 }}>
+        <Header/>
         <View style={styles(colors).header}>
+          
           <Text style={styles(colors).headerTextTitle}>🎶 Ma Playlist</Text>
           {hasActiveAbonnement ? (
             <TouchableOpacity onPress={handleRefresh}>

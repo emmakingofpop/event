@@ -27,6 +27,7 @@ export type Abonnement = {
   active: boolean;
 };
 
+
 /**
  * Génère un numéro d’abonnement unique
  */

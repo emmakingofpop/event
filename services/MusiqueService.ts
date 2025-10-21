@@ -18,6 +18,7 @@ import {
   uploadBytesResumable,
 } from "firebase/storage";
 
+import { Platform } from "react-native";
 import { db, storage } from "./firebaseConfig";
 
 export interface Song {
@@ -106,47 +107,74 @@ const MusiqueService = {
   },
 
  // Download using the new File/Directory object API with smart logic
-
- downloadMusicLocally: async (
+downloadMusicLocally : async (
   url: string,
   fileName: string,
   onProgress?: (progress: number) => void
 ) => {
   try {
-    // Classic API folder
-    const dir = FileSystem.documentDirectory + "musics/";
-    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    let fileUri: string;
 
-    const fileUri = dir + fileName;
+    if (Platform.OS === "android") {
+      // Android: save to Downloads
+      const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permissions.granted) {
+        throw new Error("Permission to access Downloads folder denied");
+      }
 
-    // Check if already downloaded
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (info.exists) {
-      return { uri: fileUri, alreadyExists: true };
+      // Create file in Downloads
+      fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        fileName,
+        "audio/mpeg"
+      );
+    } else {
+      // iOS / others: save inside app directory
+      const dir = FileSystem.documentDirectory + "musics/";
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+      fileUri = dir + fileName;
+
+      // Check if already downloaded
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (info.exists) {
+        return { uri: fileUri, alreadyExists: true };
+      }
     }
 
-    // Progress callback
+    // Download to temporary local file first
+    const tempUri = FileSystem.documentDirectory + "temp_" + fileName;
+
     const callback = (downloadProgress: { totalBytesWritten: number; totalBytesExpectedToWrite: number }) => {
       const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
       if (onProgress) onProgress(progress);
     };
 
-    // Create resumable download
-    const downloadResumable = FileSystem.createDownloadResumable(
-      url,
-      fileUri,
-      {},
-      callback
-    );
+    const downloadResumable = FileSystem.createDownloadResumable(url, tempUri, {}, callback);
+    const { uri: localUri } = await downloadResumable.downloadAsync();
+    console.log("✅ Finished downloading temporarily to", localUri);
 
-    const { uri } = await downloadResumable.downloadAsync();
-    console.log("✅ Finished downloading to", uri);
+    // Copy content to final location
+    const fileContent = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+    await FileSystem.writeAsStringAsync(fileUri, fileContent, { encoding: FileSystem.EncodingType.Base64 });
 
-    return { uri, alreadyExists: false };
+    // Optional: delete temp file
+    await FileSystem.deleteAsync(tempUri);
+
+    return { uri: fileUri, alreadyExists: false };
   } catch (error) {
     console.error("Error downloading music:", error);
     throw error;
   }
+},
+
+deletLocally : async (uri:any) => {
+  try {
+  await FileSystem.deleteAsync(uri);
+  console.log("✅ File deleted successfully");
+} catch (error) {
+  console.error("❌ Error deleting file:", error);
+}
+
 },
 
 

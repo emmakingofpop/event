@@ -18,6 +18,15 @@ export interface Facture {
   createdAt?: Date;
 }
 
+export type Telechargement = {
+  id?: string;
+  uid: string;
+  songId: string;
+  factId: string;
+  createdAt?: any;
+  updatedAt?: any;
+  active: boolean;
+};
 
 
 export const tel = '0977436749';
