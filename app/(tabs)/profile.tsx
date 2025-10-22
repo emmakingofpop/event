@@ -105,8 +105,7 @@ export default function Profile() {
         age,
         tel, // 🔹 include phone number
         sex,
-        photos,
-        images: [],
+        images: photos,
         created_at: new Date().toISOString(),
       };
 

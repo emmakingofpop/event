@@ -69,7 +69,7 @@ export default function ProfileScreen() {
           setDescription(data.description || "");
           setAge(String(data.age || "")); // Ensure age is a string for TextInput
           setSex(data.sex || "Homme");
-          setPhoto(data.photos?.[0] || null);
+          setPhoto(data.images?.[0] || null);
           setCheckProfile("full");
         } else {
           setCheckProfile("empty");
@@ -110,7 +110,7 @@ export default function ProfileScreen() {
         description,
         age: parseInt(age, 10), // Store age as a number
         sex,
-        photos: photo ? [photo] : [],
+        images: photo ? [photo] : [],
         created_at: new Date().toISOString(),
       };
 

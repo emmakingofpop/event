@@ -18,6 +18,7 @@ export const profileCollection = collection(db, "profiles");
 /**
  * Upload une image vers Firebase Storage (pour le profil)
  */
+
 export const uploadProfileImage = async (uri: string): Promise<string> => {
   try {
     const response = await fetch(uri);
@@ -39,6 +40,7 @@ export const uploadProfileImage = async (uri: string): Promise<string> => {
 /**
  * Ajouter un profil
  */
+
 export const createProfile = async (profile: any) => {
   const now = new Date().toISOString();
 
@@ -56,8 +58,19 @@ export const createProfile = async (profile: any) => {
     updated_at: now,
   };
 
+  // 🔹 Ajouter le profil à Firestore
   const docRef = await addDoc(profileCollection, newProfile);
-  return { id: docRef.id, ...newProfile };
+
+  // 🔹 Mettre à jour le profil avec le doc ID comme uid
+  await updateDoc(doc(db, "profiles", docRef.id), {
+    uid: docRef.id,
+  });
+
+  return {
+    id: docRef.id,
+    ...newProfile,
+    uid: docRef.id,
+  };
 };
 
 /**

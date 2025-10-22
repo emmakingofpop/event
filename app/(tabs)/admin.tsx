@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -23,20 +25,20 @@ type DashboardData = {
   factures: number;
 };
 
-type DashboardCardProps = {
-  title: string;
-  value: number;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  onPress?: () => void;
-};
-
 type QuickActionButtonProps = {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  colors: [string, string]; // fixed TS tuple type
+  colors: [string, string];
   onPress?: () => void;
 };
+
+type KnownRoutes =
+  | "/Postuler"
+  | "/ListePostulerScreen"
+  | "/VoteScreen"
+  | "/MusiqueScreen"
+  | "/AgentscanScreen"
+  | "/QrCodeScanScreen";
 
 // ----------------- MOCK API -----------------
 const fetchDashboardData = async (): Promise<DashboardData> => {
@@ -54,37 +56,37 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
 
 // ----------------- COMPONENTS -----------------
 const Header: React.FC = () => (
-  <View style={styles.headerContainer}>
-    <TouchableOpacity>
-      <Ionicons name="menu" size={28} color="#333" />
-    </TouchableOpacity>
-    <Text style={styles.headerTitle}>Admin</Text>
-    <View style={{ width: 28 }} />
-  </View>
-);
-
-const DashboardCard: React.FC<DashboardCardProps> = ({ title, value, icon, color, onPress }) => (
-  <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.cardTouchable}>
-    <View style={styles.cardContainer}>
-      <View style={styles.cardIconContainer}>
-        <Ionicons name={icon} size={22} color={color} />
-      </View>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={[styles.cardValue, { color }]}>{value}</Text>
+  <LinearGradient
+    colors={["#6a5be2", "#8e76f0"]}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={styles.headerGradient}
+  >
+    <View style={styles.headerContainer}>
+      <TouchableOpacity activeOpacity={0.7}>
+        <Ionicons name="menu" size={28} color="#fff" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Admin Dashboard</Text>
+      <Ionicons name="person-circle-outline" size={28} color="#fff" />
     </View>
-  </TouchableOpacity>
+  </LinearGradient>
 );
 
-const QuickActionButton: React.FC<QuickActionButtonProps> = ({ label, icon, colors, onPress }) => (
-  <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
+const QuickActionButton: React.FC<QuickActionButtonProps> = ({
+  label,
+  icon,
+  colors,
+  onPress,
+}) => (
+  <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
     <LinearGradient
-      colors={colors} // TS-safe as [string, string]
+      colors={colors}
       style={styles.actionButton}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
       <View style={styles.actionButtonIcon}>
-        <Ionicons name={icon} size={22} color="#fff" />
+        <Ionicons name={icon} size={24} color="#fff" />
       </View>
       <Text style={styles.actionButtonLabel}>{label}</Text>
     </LinearGradient>
@@ -95,6 +97,7 @@ const QuickActionButton: React.FC<QuickActionButtonProps> = ({ label, icon, colo
 const AdminScreen: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { colors } = useTheme();
 
   useEffect(() => {
     fetchDashboardData().then((res) => {
@@ -112,70 +115,176 @@ const AdminScreen: React.FC = () => {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <Header />
+  // ✅ Typed route buttons (no TS error)
+  const topMenuButtons: {
+    label: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    route: KnownRoutes;
+    gradient: [string, string];
+  }[] = [
+    { label: "Postuler", icon: "briefcase-outline", route: "/Postuler", gradient: ["#6A5BE2", "#8E76F0"] },
+    { label: "Liste Postuler", icon: "list", route: "/ListePostulerScreen", gradient: ["#F39C12", "#E67E22"] },
+    { label: "Voter", icon: "thumbs-up-outline", route: "/VoteScreen", gradient: ["#4D81E1", "#7A4FE8"] },
+    { label: "Musiques", icon: "musical-notes-outline", route: "/MusiqueScreen", gradient: ["#E44D91", "#F37C6C"] },
+    { label: "Scan", icon: "scan-outline", route: "/AgentscanScreen", gradient: ["#1E9D8B", "#3FC8A6"] },
+    { label: "QR Code", icon: "qr-code-outline", route: "/QrCodeScanScreen", gradient: ["#F39C12", "#E67E22"] },
+  ];
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+  return (
+    <LinearGradient colors={["#f3f5ff", "#ffffff"]} style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" />
+        <Header />
+
+        {/* 🔹 Horizontal Menu with Icons */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.topMenuScroll, { marginBottom: -60 }]}
+          contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 0 }}
+        >
+          {topMenuButtons.map((btn, idx) => (
+            <TouchableOpacity
+              key={idx}
+              activeOpacity={0.85}
+              onPress={() => router.push(btn.route)}
+              style={styles.menuButtonWrapper}
+            >
+              <LinearGradient
+                colors={btn.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.menuButton}
+              >
+                <Ionicons name={btn.icon} size={24} color="#fff" style={{ marginBottom: 6 }} />
+                <Text style={styles.menuLabel}>{btn.label}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* 🔹 Quick Actions */}
-        <View style={styles.actionsSection}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.actionsTitle}>Actions rapides</Text>
 
           <QuickActionButton
             label="Gérer les Agents Scan"
             icon="people-circle"
             colors={["#4D81E1", "#7A4FE8"]}
-            onPress={() => router.push('/GererAgentScanScreen')}
+            onPress={() => router.push("/GererAgentScanScreen")}
           />
           <QuickActionButton
             label="Gérer les Likes"
             icon="heart-circle"
-            colors={["#4D81E1", "#7A4FE8"]}
-            onPress={() => router.push('/GererLikeScreen')}
+            colors={["#E44D91", "#F37C6C"]}
+            onPress={() => router.push("/GererLikeScreen")}
           />
-
           <QuickActionButton
             label="Gérer les abonnements"
             icon="settings-outline"
             colors={["#6A5BE2", "#9076E8"]}
-            onPress={() => router.push('/GererAbonnement')}
+            onPress={() => router.push("/GererAbonnement")}
           />
-
           <QuickActionButton
             label="Gérer les factures"
             icon="document-text-outline"
             colors={["#E84D88", "#E37365"]}
-            onPress={() => router.push('/gererFactureScreen')}
+            onPress={() => router.push("/gererFactureScreen")}
           />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 // ----------------- STYLES -----------------
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingVertical:20},
-  loaderContainer: { justifyContent: "center", alignItems: "center" },
+  container: { flex: 1 },
+  headerGradient: {
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingBottom: 10,
+    shadowColor: "#6a5be2",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? 40 : 20,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loaderText: { marginTop: 10, fontSize: 16, color: "#555" },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 30 },
-  headerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 15 },
-  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#6a5be2" },
-  dashboardTitle: { fontSize: 26, fontWeight: "bold", color: "#1A1A1A", marginTop: 10, marginBottom: 25 },
-  cardsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  cardTouchable: { width: "48%", marginBottom: 16 },
-  cardContainer: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 15, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
-  cardIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.05)", justifyContent: "center", alignItems: "center", marginBottom: 12 },
-  cardTitle: { fontSize: 14, color: "#8A8A8A", marginBottom: 5 },
-  cardValue: { fontSize: 24, fontWeight: "bold" },
-  actionsSection: { marginTop: 20 },
-  actionsTitle: { fontSize: 20, fontWeight: "bold", color: "#1A1A1A", marginBottom: 15 },
-  actionButton: { flexDirection: "row", alignItems: "center", padding: 15, borderRadius: 16, marginBottom: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
-  actionButtonIcon: { backgroundColor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40, borderRadius: 20, justifyContent: "center", alignItems: "center", marginRight: 15 },
-  actionButtonLabel: { fontSize: 16, fontWeight: "bold", color: "#FFFFFF" },
+  topMenuScroll: { marginVertical: 16 },
+  menuButtonWrapper: {
+    marginRight: 14,
+    borderRadius: 18,
+  },
+  menuButton: {
+    width: 90,
+    height: 90,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  menuLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  actionsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A1A",
+    marginBottom: 15,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 18,
+    marginBottom: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  actionButtonIcon: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  actionButtonLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
 });
 
 export default AdminScreen;

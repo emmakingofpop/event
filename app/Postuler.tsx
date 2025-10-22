@@ -1,11 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { getArticlesByCategory } from "@/services/articleService";
 import { createProfile, updateProfileByUid } from "@/services/profileService";
 import { souscat } from '@/type/type';
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useTheme } from '@react-navigation/native';
 import * as ImagePicker from "expo-image-picker";
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, Easing, FlatList, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PostulerService } from '../services/postulerService';
 import Header from './components/header';
@@ -21,7 +22,6 @@ interface ProfileData {
   age: string;
   tel: string;
   sex: string;
-  photos: string[];
   images: any[];
   created_at: string;
 }
@@ -57,6 +57,31 @@ const Postuler = () => {
   const [numero, setNumero] = useState<string>(''); // Numéro de candidat unique
 
 
+  
+    // Load articles
+    useEffect(() => {
+      let isMounted = true;
+      const getArticlesByCategori = async () => {
+        try {
+          const res = await getArticlesByCategory('Événements');
+          if (isMounted && res) {
+            const filtered = res.filter(
+              (cat: any) =>
+                cat.style === 'concour miss' || cat.style === "ballon d'or"
+            );
+            setData(filtered);
+          }
+        } catch{
+          
+        }
+      };
+      getArticlesByCategori();
+      return () => {
+        isMounted = false;
+      };
+    }, []);
+
+
   // 2. LOGIQUE DE GESTION DES IMAGES DU PROFIL (Inchagée)
   const pickImages = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -90,20 +115,19 @@ const Postuler = () => {
 
     try {
       const profileData: ProfileData = {
-        uid: user?.uid || "anonymous",
+        uid: profileId || "anonymous",
         fullName,
         description,
         age,
         tel,
         sex,
-        photos,
-        images: [],
+        images: photos,
         created_at: new Date().toISOString(),
       };
 
       if (profileId) {
         // Mise à jour du profil existant
-        await updateProfileByUid(user?.uid, profileData);
+        await updateProfileByUid(profileId, profileData);
         Alert.alert("Succès", "Profil mis à jour ! ✅ Vous pouvez maintenant postuler.");
       } else {
         // Création d'un nouveau profil
@@ -138,7 +162,7 @@ const Postuler = () => {
     try {
       setIsLoading(true);
 
-      const uid = user?.uid;
+      const uid = profileId;
       if (!uid) {
         Alert.alert("Erreur", "Utilisateur non connecté.");
         return;
@@ -168,6 +192,7 @@ const Postuler = () => {
       // -------------------------------------------------------------------------
       setTypeSelected("");
       setSouscategorie("");
+      setProfileId("");
       setNumero(""); // Réinitialiser le champ numéro
       // ** Retourner à l'étape 1 pour une nouvelle inscription ou modification de profil **
       setStep(1); 
@@ -389,15 +414,8 @@ const Postuler = () => {
   return (
     <View style={{ flex: 1 }}>
       <Header />
-      {profileLoaded ? (
+      {!profileLoaded && (
         step === 1 ? renderProfileStep() : renderApplicationStep()
-      ) : (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Ionicons name="sync" size={32} color={colors.primary} />
-          </Animated.View>
-          <Text style={{ color: colors.text, marginTop: 10 }}>Chargement des données...</Text>
-        </View>
       )}
     </View>
   );

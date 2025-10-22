@@ -92,13 +92,9 @@ export default function HomeScreen() {
         />
         <Ionicons name="search" size={22} color={colors.primary} />
       </View>
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-        <TouchableOpacity
-          style={[styles.btn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/Postuler')}
-        >
-          <Text style={{ color: '#fff' }}>Postuler</Text>
-        </TouchableOpacity>
+        
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/VoteScreen')}
@@ -124,6 +120,7 @@ export default function HomeScreen() {
           <Text style={{ color: '#fff' }}>Qr Code Scan</Text>
         </TouchableOpacity>
       </ScrollView>
+
       <View style={styles.categories}>
         {categories.map((cat, index) => (
           <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: colors.card }]} onPress={() => setrouter(cat.name)}>

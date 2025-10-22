@@ -8,6 +8,7 @@ import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Linking,
   Modal,
@@ -95,26 +96,74 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
   };
 
   // 🔹 Achat / Contact avec facture
-  const handleSendMessage = async (telphone:string) => {
-    try {
-      setIsLoading(true);
+  const handleSendMessage = async (telphone: string) => {
+  try {
+    // 🔹 1st confirmation
+    Alert.alert(
+      "Confirmation",
+      "Souhaitez-vous vraiment envoyer le message ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Oui",
+          onPress: () => {
+            // 🔹 2nd confirmation
+            Alert.alert(
+              "Vérification finale",
+              "Êtes-vous sûr de vouloir procéder à l’envoi ?",
+              [
+                { text: "Annuler", style: "cancel" },
+                {
+                  text: "Confirmer",
+                  onPress: async () => {
+                    setIsLoading(true);
+                    try {
+                      const factureId =
+                        item.category === "Événements"
+                          ? await FactureService.createFacture({
+                              uid: user?.uid,
+                              etat: "en attente",
+                              posteId: item.id || "",
+                              scanned: false,
+                              items: [
+                                {
+                                  id: "1",
+                                  nom: item.title,
+                                  quantite: 1,
+                                  prix: item.prix || 0,
+                                },
+                              ],
+                            })
+                          : "";
 
-      const factureId = (item.category === "Événements") ? await FactureService.createFacture({
-        uid: user?.uid,
-        etat: "en attente",
-        posteId: item.id || "",
-        scanned: false,
-        items: [{ id: "1", nom: item.title, quantite: 1, prix: item.prix || 0 }],
-      }): '';
+                      const message = getPersonalizedMessage(
+                        item.category,
+                        item,
+                        factureId || ""
+                      );
+                      handleWhatsApp(telphone, message);
+                    } catch (error) {
+                      console.error(error);
+                      Alert.alert(
+                        "Erreur",
+                        "Impossible d’envoyer le message. Veuillez réessayer."
+                      );
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  } catch  {
+    Alert.alert("Erreur","Essayer encore")
+  }
+};
 
-      const message = getPersonalizedMessage(item.category, item, factureId || '');
-      handleWhatsApp(telphone, message);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1 < images.length ? prev + 1 : 0));

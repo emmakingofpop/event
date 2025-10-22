@@ -76,8 +76,13 @@ export const PostulerService = {
   },
 
   /** DELETE a postuler by document ID */
-  deletePostuler: async (id: string): Promise<void> => {
-    const docRef = doc(postulerCollection, id);
-    await deleteDoc(docRef);
+  deletePostuler: async (id: string): Promise<boolean> => {
+    try {
+      const docRef = doc(postulerCollection, id);
+      await deleteDoc(docRef);
+      return true
+    } catch {
+      return false
+    }
   },
 };

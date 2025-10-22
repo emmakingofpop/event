@@ -185,7 +185,7 @@ const handleLike = async (item: any) => {
   };
 
   const renderProfileCard = ({ item }: { item: any }) => {
-    const mainPhoto = item?.photos?.[0] ?? null;
+    const mainPhoto = item?.images?.[0] ?? null;
     return (
       <TouchableOpacity
         style={styles.card}
@@ -304,7 +304,7 @@ const handleLike = async (item: any) => {
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
                   >
-                    {selectedProfile.photos?.slice(0, 10).map((photo: string, idx: number) => (
+                    {selectedProfile.images?.slice(0, 10).map((photo: string, idx: number) => (
                       <Image
                         key={idx}
                         source={{ uri: photo }}

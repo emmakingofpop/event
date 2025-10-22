@@ -7,16 +7,16 @@ import { Picker } from "@react-native-picker/picker";
 import { useTheme } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Header from './components/header';
 
@@ -198,8 +198,8 @@ const GererAgentScanScreen = () => {
         {!isLoading && mergedAgents.map((agent, idx) => (
           <View key={idx} style={styles.agentCard}>
             <View style={styles.agentHeader}>
-              {agent.profile?.photos?.[0] ? (
-                <Image source={{ uri: agent.profile.photos[0] }} style={styles.avatar} />
+              {agent.profile?.images?.[0] ? (
+                <Image source={{ uri: agent.profile.images[0] }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={{ color: "#fff" }}>{agent.profile?.fullName?.[0] || "?"}</Text>
