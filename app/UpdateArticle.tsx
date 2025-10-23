@@ -2,15 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from "@react-native-picker/picker";
-import { useTheme } from '@react-navigation/native';
+import { Theme, useTheme } from '@react-navigation/native'; // Import Theme type
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
-  Animated, Easing,
+  Animated,
+  Dimensions,
+  Easing,
   FlatList,
   ImageBackground,
   KeyboardAvoidingView,
+  ListRenderItem,
+  Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,25 +27,144 @@ import { updateArticle } from "../services/articleService";
 
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const { height } = Dimensions.get('window');
+
+// ------------------------------------------------------------------
+// 1. New Data for SearchableSelect
+// ------------------------------------------------------------------
+const DRCTowns: string[] = [
+  "Kinshasa", "Lubumbashi", "Mbuji-Mayi", "Kananga", "Kisangani", "Bukavu", "Kolwezi", "Goma",
+  "Tshikapa", "Likasi", "Kikwit", "Uvira", "Bunia", "Butembo", "Mbandaka", "Matadi", "Bandundu",
+  "Boma", "Kindu", "Isiro", "Gemena", "Kalemie", "Mwene-Ditu", "Kabinda", "Kamina", "Beni"
+];
+
+// ------------------------------------------------------------------
+// 2. SearchableSelect Component Types & Component (Reused from Poste)
+// ------------------------------------------------------------------
+interface SearchableSelectProps {
+  label: string;
+  options: string[];
+  onSelect: (value: string) => void;
+  selectedValue: string | null;
+  colors: Theme['colors'];
+}
+
+const SearchableSelect: React.FC<SearchableSelectProps> = ({ label, options, onSelect, selectedValue, colors }) => {
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const filteredOptions = useMemo((): string[] => {
+    if (!searchQuery) {
+      return options;
+    }
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return options.filter(option =>
+      option.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [options, searchQuery]);
+
+  const handleSelect = useCallback((item: string) => {
+    onSelect(item);
+    setSearchQuery('');
+    setModalVisible(false);
+  }, [onSelect]);
+
+  const renderItem: ListRenderItem<string> = ({ item }) => (
+    <TouchableOpacity
+      style={[localStyles.optionItem, { borderBottomColor: colors.border }]}
+      onPress={() => handleSelect(item)}
+    >
+      <Text style={[localStyles.optionText, { color: colors.text }]}>{item}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={localStyles.container}>
+      {/* --- Display Component (The Input Field) --- */}
+      <TouchableOpacity
+        style={[localStyles.displayInput, { borderColor: colors.border, backgroundColor: colors.card }]}
+        onPress={() => setModalVisible(true)}
+      >
+        <Text style={[localStyles.labelText, { color: colors.text, backgroundColor: colors.card }]}>{label}</Text>
+        <View style={localStyles.selectedValueContainer}>
+          <Text style={selectedValue ? localStyles.selectedValueText : localStyles.placeholderText}>
+            {selectedValue || "Sélectionner une ville..."}
+          </Text>
+          <Ionicons name="caret-down-outline" size={18} color={colors.text} />
+        </View>
+      </TouchableOpacity>
+
+      {/* --- Modal for Search and Selection --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <SafeAreaView style={localStyles.modalOverlay}>
+          <View style={[localStyles.modalContent, { backgroundColor: colors.background }]}>
+            {/* Search Input */}
+            <View style={[localStyles.searchContainer, { borderBottomColor: colors.border }]}>
+              <Ionicons name="search" size={20} color={colors.text} style={localStyles.searchIcon} />
+              <TextInput
+                style={[localStyles.searchInput, { color: colors.text }]}
+                placeholder={`Rechercher ${label}...`}
+                placeholderTextColor={colors.text + '99'}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus={true}
+              />
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                {searchQuery ? <Ionicons name="close-circle" size={20} color={colors.text} /> : null}
+              </TouchableOpacity>
+            </View>
+
+            {/* List of Filtered Options */}
+            <FlatList
+              data={filteredOptions}
+              keyExtractor={(item) => item}
+              renderItem={renderItem}
+              ListEmptyComponent={<Text style={[localStyles.emptyList, { color: colors.text }]}>Aucune ville correspondante trouvée.</Text>}
+            />
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={[localStyles.closeButton, { backgroundColor: colors.primary }]}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={localStyles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    </View>
+  );
+};
+
+
+// ------------------------------------------------------------------
+// 3. Main UpdateArticle Component
+// ------------------------------------------------------------------
 
 export type Article = {
-  id?: string; // optionnel, Firestore le génère
-  uid: string; // ID de l'utilisateur qui crée l'article
+  id?: string;
+  uid: string;
   title: string;
   description: string;
-  category: string; // par exemple: 'Événements', 'Transport', etc.
-  quantity?: string | null; // peut être vide selon catégorie
-  images: string[]; // URLs des images uploadées
+  category: string;
+  quantity?: string | null;
+  images: string[];
   prix?: string | null;
   currency?: 'FC' | 'USD' | null;
-  date?: string | null; // ISO string si catégorie = Événements
-  style?: 'gospel' | 'mondaine' | "ballon d'or" | "concour miss" | null; // si catégorie = Événements
+  date?: string | null;
+  style?: 'gospel' | 'mondaine' | "ballon d'or" | "concour miss" | null;
   sex?: 'Homme' | 'Femme' | null;
-  transportType?: 'voiture' | 'moto' | null; // si catégorie = Transport
-  created_at: string; // ISO string
-  updated_at: string; // ISO string
+  transportType?: 'voiture' | 'moto' | null;
+  town?: string | null; // <--- ADDED TOWN FIELD
+  created_at: string;
+  updated_at: string;
 };
 
 
@@ -69,44 +193,44 @@ export default function UpdateArticle() {
   const [currency, setCurrency] = useState<'FC' | 'USD'>('FC');
   const [isLoading,setIsloading] = useState<boolean>(false)
   const [article, setArticle] = useState<(Article & {id:string})|null>(null);
+  // --- New State for Town ---
+  const [selectedTown, setSelectedTown] = useState<string | null>(null);
+  // ---------------------------
   const { colors } = useTheme();
   const { user } = useAuth();
   const spinAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-      spinning()
+    spinning()
   }, []);
 
-    useEffect(() => {
-        const loadArticle = async () => {
-        try {
-            const jsonValue = await AsyncStorage.getItem('@article_to_update');
-            if (jsonValue != null) {
-            setArticle(JSON.parse(jsonValue));
-            
-            }
-        } catch (error) {
-            console.error('Error loading article:', error);
+  useEffect(() => {
+    const loadArticle = async () => {
+      try {
+        const jsonValue = await AsyncStorage.getItem('@article_to_update');
+        if (jsonValue != null) {
+          setArticle(JSON.parse(jsonValue));
         }
-        };
-        console.log('emma1')
-        loadArticle();
-    }, []);
+      } catch (error) {
+        console.error('Error loading article:', error);
+      }
+    };
+    loadArticle();
+  }, []);
 
-    useEffect(() => {
-     resetForm(article)
-    }, [article])
-    
+  useEffect(() => {
+    resetForm(article)
+  }, [article])
 
   const spinning = () => {
-        Animated.loop(
-          Animated.timing(spinAnim, {
-            toValue: 1,
-            duration: 1000,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          })
-        ).start();
+    Animated.loop(
+      Animated.timing(spinAnim, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
   }
 
   const spin = spinAnim.interpolate({
@@ -116,11 +240,11 @@ export default function UpdateArticle() {
 
 
   const pickImages = async () => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    allowsMultipleSelection: true,
-    mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-    quality: 0.8,
-  });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
 
 
     if (!result.canceled) {
@@ -129,7 +253,7 @@ export default function UpdateArticle() {
     }
   };
 
-    const showMode = (currentMode: 'date' | 'time') => {
+  const showMode = (currentMode: 'date' | 'time') => {
     setShow(true);
     setMode(currentMode);
   };
@@ -153,6 +277,13 @@ export default function UpdateArticle() {
       Alert.alert("Erreur", "Veuillez choisir une catégorie.");
       return;
     }
+
+    // --- Town Validation ---
+    if (!selectedTown) {
+        Alert.alert("Erreur", "Veuillez sélectionner une ville.");
+        return;
+    }
+    // ----------------------
 
     // Vérification spécifique selon la catégorie
     if (selectedCategory !== "Transport" && selectedCategory !== "Rencontre" && !title) {
@@ -191,7 +322,7 @@ export default function UpdateArticle() {
       return;
     }
 
-    const now = new Date().toISOString(); 
+    const now = new Date().toISOString();
 
     // Objet final à envoyer
     const articles: Article = {
@@ -207,6 +338,7 @@ export default function UpdateArticle() {
       style: selectedCategory === "Événements" ? typeselected : null,
       sex: selectedCategory === "Rencontre" ? sex : null,
       transportType: selectedCategory === "Transport" ? selected : null,
+      town: selectedTown, // <--- Add selectedTown to the updated article
       created_at: article?.created_at || now, // garde la date de création si existante
       updated_at: now,
     };
@@ -221,10 +353,10 @@ export default function UpdateArticle() {
       router.push("/liste");
     } else {
       setIsloading(false)
-       Alert.alert("Erreur", "Échec de la Modification de l'article. Veuillez réessayer !");
+      Alert.alert("Erreur", "Échec de la Modification de l'article. Veuillez réessayer !");
     }
 
-    
+
   };
 
   const setInputToDefault = () => {
@@ -239,22 +371,24 @@ export default function UpdateArticle() {
     setTypeSelected("gospel");
     setSex("Homme");
     setSelected(null);
+    setSelectedTown(null); // Reset town
   }
 
 
-const resetForm = (article?: (Article & {id:string})|null) => {
-  setTitle(article?.title ?? "");
-  setDescription(article?.description ?? "");
-  setSelectedCategory(article?.category ?? null);
-  setQuantity(article?.quantity ?? "");
-  setImages(article?.images ?? []);
-  setPrix(article?.prix ?? "");
-  setCurrency(article?.currency ?? "FC");
-  setDate(article?.date ? new Date(article.date) : new Date());
-  setTypeSelected(article?.style ?? "gospel");
-  setSex(article?.sex ?? "Homme");
-  setSelected(article?.transportType ?? null);
-};
+  const resetForm = (article?: (Article & {id:string})|null) => {
+    setTitle(article?.title ?? "");
+    setDescription(article?.description ?? "");
+    setSelectedCategory(article?.category ?? null);
+    setQuantity(article?.quantity ?? "");
+    setImages(article?.images ?? []);
+    setPrix(article?.prix ?? "");
+    setCurrency(article?.currency ?? "FC");
+    setDate(article?.date ? new Date(article.date) : new Date());
+    setTypeSelected(article?.style ?? "gospel");
+    setSex(article?.sex ?? "Homme");
+    setSelected(article?.transportType ?? null);
+    setSelectedTown(article?.town ?? null); // <--- Initialize selectedTown
+  };
 
 
 
@@ -264,260 +398,367 @@ const resetForm = (article?: (Article & {id:string})|null) => {
       style={{ flex: 1 }}
     >
 
-        <View style={styles.container}>
-          <ScrollView 
-            showsVerticalScrollIndicator={false} 
-            style={[styles.card,{paddingBottom: 70,maxHeight:'80%',}]}
-            keyboardShouldPersistTaps="handled"
+      <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={[styles.card,{paddingBottom: 70,maxHeight:'80%',}]}
+          keyboardShouldPersistTaps="handled"
+          >
+          <Text style={[styles.title,{color:colors.text}]}>Modifier article</Text>
+
+          {/* Sélection de la catégorie */}
+          { selectedCategory !== "Transport" &&
+          <TextInput
+            style={[styles.input,{color:colors.text, borderColor: colors.border}]}
+            placeholder={selectedCategory ==="Rencontre" ? "Nom complet" : "Titre de l'article"}
+            placeholderTextColor="#ccc"
+            value={title}
+            onChangeText={setTitle}
+          />}
+
+          {/* --- SearchableSelect for Town --- */}
+          <SearchableSelect
+            label="Sélectionner une ville"
+            options={DRCTowns}
+            onSelect={setSelectedTown}
+            selectedValue={selectedTown}
+            colors={colors}
+          />
+          {/* ---------------------------------- */}
+
+          {/* selection du type de transport */}
+          { selectedCategory === "Transport" &&
+          <View style={styles.container}>
+            <Text style={[styles.label, {color: colors.text}]}>Sélectionnez votre type de transport :</Text>
+
+            {/* Option voiture */}
+            <TouchableOpacity
+              style={styles.option}
+              onPress={() => setSelected("voiture")}
             >
-            <Text style={[styles.title,{color:colors.text}]}>Modifier article</Text>
+              <Ionicons
+                name={selected === "voiture" ? "radio-button-on" : "radio-button-off"}
+                size={24}
+                color={selected === "voiture" ? colors.primary : colors.text}
+              />
+              <Text style={[styles.text, {color: colors.text}]}>Voiture</Text>
+            </TouchableOpacity>
 
-            {/* Sélection de la catégorie */}
-            { selectedCategory !== "Transport" && 
-            <TextInput
-              style={[styles.input,{color:colors.text}]}
-              placeholder={selectedCategory ==="Rencontre" ? "Nom complet" : "Titre de l'article"}
-              placeholderTextColor="#ccc"
-              value={title}
-              onChangeText={setTitle}
-            />}
+            {/* Option moto */}
+            <TouchableOpacity
+              style={styles.option}
+              onPress={() => setSelected("moto")}
+            >
+              <Ionicons
+                name={selected === "moto" ? "radio-button-on" : "radio-button-off"}
+                size={24}
+                color={selected === "moto" ? colors.primary : colors.text}
+              />
+              <Text style={[styles.text, {color: colors.text}]}>Moto</Text>
+            </TouchableOpacity>
 
-            {/* selection du type de transport */}
-            { selectedCategory === "Transport" && 
+          </View>}
+
+          <TextInput
+            style={[styles.input, { height: 100, textAlignVertical: 'top',color:colors.text, borderColor: colors.border }]}
+            placeholder="Description"
+            placeholderTextColor="#ccc"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
+
+          {/* Sélection de la catégorie */}
+          <Text style={[styles.sectionTitle,{color:colors.text}]}>Catégorie</Text>
+          <FlatList
+            data={categories}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.name}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.categoryItem,{backgroundColor:colors.card, borderColor: colors.border},
+                  selectedCategory === item.name && {backgroundColor: colors.primary, borderColor: colors.primary},
+                ]}
+                onPress={() => setSelectedCategory(item.name)}
+              >
+                <Ionicons
+                  name={item.icon as any}
+                  size={22}
+                  color={selectedCategory === item.name ? '#fff' : colors.primary}
+                />
+                <Text
+                  style={{
+                    color: selectedCategory === item.name ? '#fff' : colors.primary,
+                    marginTop: 4,
+                    fontSize: 12,
+                  }}
+                >
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            )}
+            style={{ marginBottom: 16 }}
+          />
+
+          {/* Date picker */}
+          { selectedCategory === 'Événements' &&
+          <View style={styles.container}>
+            <Text style={[styles.selectedText, {color: colors.text}]}>
+              Sélectionné : {date.toLocaleString('fr-FR')}
+            </Text>
+
+            {/* Bouton Date */}
+            <TouchableOpacity style={[styles.button, {backgroundColor: colors.primary}]} onPress={() => showMode('date')}>
+              <Ionicons name="calendar" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>Choisir une date</Text>
+            </TouchableOpacity>
+
+            {/* Bouton Heure */}
+            <TouchableOpacity style={[styles.button, {backgroundColor: colors.primary}]} onPress={() => showMode('time')}>
+              <Ionicons name="time" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonText}>Choisir une heure</Text>
+            </TouchableOpacity>
+
+            {show && (
+              <DateTimePicker
+                value={date}
+                mode={mode}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onChange}
+                locale="fr-FR"
+              />
+            )}
+          </View>}
+
+            {/* style */}
+          { selectedCategory === 'Événements' &&
             <View style={styles.container}>
-              <Text style={styles.label}>Sélectionnez votre type de transport :</Text>
+            <Text style={[styles.label, {color: colors.text}]}>Choisissez le style :</Text>
 
-              {/* Option voiture */}
-              <TouchableOpacity
-                style={styles.option}
-                onPress={() => setSelected("voiture")}
+            <View style={[styles.pickerWrapper, {borderColor: colors.primary}]}>
+              <Picker
+                selectedValue={typeselected}
+                onValueChange={(itemValue) => setTypeSelected(itemValue as "gospel" | "mondaine" | "ballon d'or" | "concour miss")}
+                style={[styles.picker, {color: colors.text, backgroundColor: colors.card}]}
+                dropdownIconColor={colors.primary}
               >
-                <Ionicons
-                  name={selected === "voiture" ? "radio-button-on" : "radio-button-off"}
-                  size={24}
-                  color={selected === "voiture" ? colors.text : "#555"}
-                />
-                <Text style={styles.text}>Voiture</Text>
-              </TouchableOpacity>
+                <Picker.Item label="🎶 Gospel" value="gospel" />
+                <Picker.Item label="🎵 Mondaine" value="mondaine" />
+                <Picker.Item label="ballon d'or" value="ballon d'or" />
+                <Picker.Item label="concour miss" value="concour miss" />
+              </Picker>
+            </View>
 
-              {/* Option moto */}
-              <TouchableOpacity
-                style={styles.option}
-                onPress={() => setSelected("moto")}
+          </View>
+          }
+
+          {/* style */}
+          { selectedCategory === 'Rencontre' &&
+            <View style={styles.container}>
+            <Text style={[styles.label, {color: colors.text}]}>Choisissez votre sex :</Text>
+
+            <View style={[styles.pickerWrapper, {borderColor: colors.primary}]}>
+              <Picker
+                selectedValue={sex}
+                onValueChange={(itemValue) => setSex(itemValue as "Homme" | "Femme")}
+                style={[styles.picker, {color: colors.text, backgroundColor: colors.card}]}
+                dropdownIconColor={colors.primary}
               >
-                <Ionicons
-                  name={selected === "moto" ? "radio-button-on" : "radio-button-off"}
-                  size={24}
-                  color={selected === "moto" ? colors.text : "#555"}
-                />
-                <Text style={styles.text}>Moto</Text>
-              </TouchableOpacity>
+                <Picker.Item label="Homme" value="Homme" />
+                <Picker.Item label="Femme" value="Femme" />
+              </Picker>
+            </View>
 
-            </View>}
+          </View>
+          }
 
-            <TextInput
-              style={[styles.input, { height: 100, textAlignVertical: 'top',color:colors.text }]}
-              placeholder="Description"
-              placeholderTextColor="#ccc"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-            />
+          {/* Quantité */}
+          { (selectedCategory !== "Transport" && selectedCategory !== "Réservation" && selectedCategory !== "Livraison" && selectedCategory !== "Rencontre" ) &&
+          <TextInput
+            style={[styles.input, {color:colors.text, borderColor: colors.border}]}
+            placeholder="Quantité"
+            placeholderTextColor="#ccc"
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="numeric"
+          />}
+          {/* Prix */}
 
-            {/* Sélection de la catégorie */}
-            <Text style={[styles.sectionTitle,{color:colors.text}]}>Catégorie</Text>
-            <FlatList
-              data={categories}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.name}
-              renderItem={({ item }) => (
+
+          { (selectedCategory === "Transport" || selectedCategory === "Livraison")
+          &&
+          <Text style={[styles.label, {color: colors.text}]}>Prix par Km :</Text> }
+          { selectedCategory === "Réservation" &&
+          <Text style={[styles.label, {color: colors.text}]}>Prix par Jour :</Text> }
+          {selectedCategory !== "Rencontre" &&
+          <TextInput
+            style={[styles.input, {color:colors.text, borderColor: colors.border}]}
+            placeholder="Prix"
+            placeholderTextColor="#ccc"
+            value={prix}
+            onChangeText={setPrix}
+            keyboardType="numeric"
+          />}
+
+          {/* Currency */}
+          {selectedCategory !== "Rencontre" &&
+          <View style={{ flexDirection: 'row', alignItems: 'center', margin: 20 }}>
+            {/* FC Checkbox */}
+            <TouchableOpacity
+              style={[styles.checkbox, currency === 'FC' && {backgroundColor:colors.primary, borderColor:colors.primary}]}
+              onPress={() => setCurrency('FC')}
+            >
+              {currency === 'FC' && <View style={styles.inner} />}
+            </TouchableOpacity>
+            <Text style={[styles.label,{color:colors.text}]}>FC</Text>
+
+            {/* USD Checkbox */}
+            <TouchableOpacity
+              style={[styles.checkbox, currency === 'USD' && {backgroundColor:colors.primary, borderColor:colors.primary}]}
+              onPress={() => setCurrency('USD')}
+            >
+              {currency === 'USD' && <View style={styles.inner} />}
+            </TouchableOpacity>
+            <Text style={[styles.label,{color:colors.text}]}>USD</Text>
+          </View>}
+
+          {/* Bouton pour choisir les photos */}
+          <TouchableOpacity style={[styles.imageButton, {backgroundColor: colors.primary}]} onPress={pickImages}>
+            <Ionicons name="images" size={22} color="#fff" />
+            <Text style={styles.imageButtonText}>Ajouter des photos</Text>
+          </TouchableOpacity>
+
+          {/* Preview des photos sélectionnées */}
+          <FlatList
+            data={images}
+            keyExtractor={(item, index) => index.toString()}
+            horizontal
+            style={{ marginVertical: 12 }}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <ImageBackground source={{ uri: item }} style={styles.preview} imageStyle={{ borderRadius: 12 }}>
                 <TouchableOpacity
-                  style={[
-                    styles.categoryItem,{backgroundColor:colors.card},
-                    selectedCategory === item.name && styles.categorySelected,
-                  ]}
-                  onPress={() => setSelectedCategory(item.name)}
+                  style={styles.deleteButton}
+                  onPress={() => setImages(images.filter((img) => img !== item))}
                 >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={22}
-                    color={selectedCategory === item.name ? '#fff' : colors.primary}
-                  />
-                  <Text
-                    style={{
-                      color: selectedCategory === item.name ? '#fff' : colors.primary,
-                      marginTop: 4,
-                      fontSize: 12,
-                    }}
-                  >
-                    {item.name}
-                  </Text>
+                  <Ionicons name="trash" size={20} color="#fff" />
                 </TouchableOpacity>
-              )}
-              style={{ marginBottom: 16 }}
-            />
+              </ImageBackground>
+            )}
+          />
 
-            {/* Date picker */}
-            { selectedCategory === 'Événements' &&
-            <View style={styles.container}>
-              <Text style={styles.selectedText}>
-                Sélectionné : {date.toLocaleString('fr-FR')}
-              </Text>
-
-              {/* Bouton Date */}
-              <TouchableOpacity style={styles.button} onPress={() => showMode('date')}>
-                <Ionicons name="calendar" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.buttonText}>Choisir une date</Text>
-              </TouchableOpacity>
-
-              {/* Bouton Heure */}
-              <TouchableOpacity style={styles.button} onPress={() => showMode('time')}>
-                <Ionicons name="time" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.buttonText}>Choisir une heure</Text>
-              </TouchableOpacity>
-
-              {show && (
-                <DateTimePicker
-                  value={date}
-                  mode={mode}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onChange}
-                  locale="fr-FR" // 👈 iOS affiche en français automatiquement
-                />
-              )}
-            </View>}
-
-              {/* style */}
-            { selectedCategory === 'Événements' &&
-              <View style={styles.container}>
-              <Text style={styles.label}>Choisissez le style :</Text>
-
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={typeselected}
-                  onValueChange={(itemValue) => setTypeSelected(itemValue)}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
-                >
-                  <Picker.Item label="🎶 Gospel" value="gospel" />
-                  <Picker.Item label="🎵 Mondaine" value="mondaine" />
-                  <Picker.Item label="ballon d'or" value="ballon d'or" />
-                  <Picker.Item label="concour miss" value="concour miss" />
-                </Picker>
-              </View>
-
+          {/* Bouton publier */}
+          <TouchableOpacity style={[styles.button, {backgroundColor: colors.primary}]} onPress={handlePublish} disabled={isLoading}>
+            <View style={{flexDirection:'row',alignItems:'center'}}>
+              {isLoading && <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="sync" size={30} color="#fff" />
+              </Animated.View>}
+              <Text style={styles.buttonText}>Modifier</Text>
             </View>
-            }
-                          {/* style */}
-            { selectedCategory === 'Rencontre' &&
-              <View style={styles.container}>
-              <Text style={styles.label}>Choisissez votre sex :</Text>
-
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={sex}
-                  onValueChange={(itemValue) => setSex(itemValue)}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
-                >
-                  <Picker.Item label="Homme" value="Homme" />
-                  <Picker.Item label="Femme" value="Femme" />
-                </Picker>
-              </View>
-
-            </View>
-            }
-
-            {/* Quantité */}
-            { (selectedCategory !== "Transport" && selectedCategory !== "Réservation"  && selectedCategory !== "Livraison"  && selectedCategory !== "Rencontre" ) && 
-            <TextInput
-              style={styles.input}
-              placeholder="Quantité"
-              placeholderTextColor="#ccc"
-              value={quantity}
-              onChangeText={setQuantity}
-              keyboardType="numeric"
-            />}
-            {/* Prix */}
-
-            
-            { (selectedCategory === "Transport" || selectedCategory === "Livraison")  && 
-            <Text style={styles.label}>Prix par Km :</Text> }
-            { selectedCategory === "Réservation" && 
-            <Text style={styles.label}>Prix par Jour :</Text> }
-            {selectedCategory !== "Rencontre" &&
-            <TextInput
-              style={styles.input}
-              placeholder="Prix"
-              placeholderTextColor="#ccc"
-              value={prix}
-              onChangeText={setPrix}
-              keyboardType="numeric"
-            />}
-
-            {/* Currency */}
-            {selectedCategory !== "Rencontre" &&
-            <View style={{ flexDirection: 'row', alignItems: 'center', margin: 20 }}>
-              {/* FC Checkbox */}
-              <TouchableOpacity
-                style={[styles.checkbox, currency === 'FC' && styles.checked]}
-                onPress={() => setCurrency('FC')}
-              >
-                {currency === 'FC' && <View style={styles.inner} />}
-              </TouchableOpacity>
-              <Text style={[styles.label,{color:colors.text}]}>FC</Text>
-
-              {/* USD Checkbox */}
-              <TouchableOpacity
-                style={[styles.checkbox, currency === 'USD' && styles.checked]}
-                onPress={() => setCurrency('USD')}
-              >
-                {currency === 'USD' && <View style={styles.inner} />}
-              </TouchableOpacity>
-              <Text style={[styles.label,{color:colors.text}]}>USD</Text>
-            </View>}
-
-            {/* Bouton pour choisir les photos */}
-            <TouchableOpacity style={styles.imageButton} onPress={pickImages}>
-              <Ionicons name="images" size={22} color="#fff" />
-              <Text style={styles.imageButtonText}>Ajouter des photos</Text>
-            </TouchableOpacity>
-
-            {/* Preview des photos sélectionnées */}
-            <FlatList
-              data={images}
-              keyExtractor={(item, index) => index.toString()}
-              horizontal
-              style={{ marginVertical: 12 }}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <ImageBackground source={{ uri: item }} style={styles.preview} imageStyle={{ borderRadius: 12 }}>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => setImages(images.filter((img) => img !== item))}
-                  >
-                    <Ionicons name="trash" size={20} color="#fff" />
-                  </TouchableOpacity>
-                </ImageBackground>
-              )}
-            />
-
-            {/* Bouton publier */}
-            <TouchableOpacity style={styles.button} onPress={handlePublish} disabled={isLoading}>
-                  <View style={{flexDirection:'row',alignItems:'center'}}>
-                    {isLoading && <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                      <Ionicons name="sync" size={30} color="#fff" />
-                    </Animated.View>}
-                    <Text style={styles.buttonText}>Modifier</Text>
-                  </View>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
 
     </KeyboardAvoidingView>
   );
 }
+
+// ------------------------------------------------------------------
+// 4. Combined Styles (Including localStyles for SearchableSelect)
+// ------------------------------------------------------------------
+
+const localStyles = StyleSheet.create({
+  container: {
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  // --- Display Input Styles ---
+  displayInput: {
+    padding: 15,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  labelText: {
+    position: 'absolute',
+    top: -10,
+    left: 10,
+    paddingHorizontal: 4,
+    fontSize: 12,
+    zIndex: 10,
+    fontWeight: '600',
+  },
+  selectedValueContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedValueText: {
+    fontSize: 16,
+    color: '#000',
+    flex: 1,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#888',
+    flex: 1,
+  },
+  // --- Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    maxHeight: height * 0.7,
+    padding: 20,
+  },
+  // --- Search Input Styles ---
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
+  },
+  // --- List Styles ---
+  optionItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+  },
+  optionText: {
+    fontSize: 16,
+  },
+  emptyList: {
+    padding: 20,
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  // --- Close Button Styles ---
+  closeButton: {
+    marginTop: 15,
+    padding: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
+
 
 const styles = StyleSheet.create({
   bg: {
@@ -558,6 +799,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
     width: 90,
+    borderWidth: 1
   },
   categorySelected: {
     backgroundColor: '#032D23',
@@ -565,7 +807,6 @@ const styles = StyleSheet.create({
   imageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#032D23',
     padding: 12,
     borderRadius: 14,
     marginBottom: 10,
@@ -582,7 +823,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   button: {
-    backgroundColor: '#032D23',
     padding: 16,
     borderRadius: 16,
     marginTop: 10,
@@ -603,7 +843,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#032D23',
     borderRadius: 4,
     marginRight: 8,
     alignItems: 'center',
@@ -627,20 +866,18 @@ const styles = StyleSheet.create({
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: "#032D23",
     borderRadius: 10,
     overflow: "hidden",
   },
   picker: {
     height: 50,
-    color: "#032D23", // couleur du texte
   },
   result: {
     marginTop: 15,
     fontSize: 16,
     fontWeight: "500",
   },
-  
+
   option: {
     flexDirection: "row",
     alignItems: "center",
@@ -656,8 +893,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     margin: 5,
     width:35,
-    position:'fixed',
-    top:40
+    position:'absolute',
+    top:5,
+    right:5,
   },
 
 });

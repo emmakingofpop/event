@@ -1,31 +1,159 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from "@react-native-picker/picker";
-import { useTheme } from '@react-navigation/native';
+import { Theme, useTheme } from '@react-navigation/native'; // Import Theme type
 import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
   Alert,
-  Animated, Easing,
+  Animated,
+  Dimensions,
+  Easing,
   FlatList,
   ImageBackground,
   KeyboardAvoidingView,
+  ListRenderItem,
+  Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { createArticle } from "../../services/articleService";
 
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserAbonnements } from '@/services/AbonnementServices';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Header from '../components/header';
 
+const { height } = Dimensions.get('window');
+
+// ------------------------------------------------------------------
+// 1. New Data for SearchableSelect
+// ------------------------------------------------------------------
+const DRCTowns: string[] = [
+  "Kinshasa", "Lubumbashi", "Mbuji-Mayi", "Kananga", "Kisangani", "Bukavu", "Kolwezi", "Goma",
+  "Tshikapa", "Likasi", "Kikwit", "Uvira", "Bunia", "Butembo", "Mbandaka", "Matadi", "Bandundu",
+  "Boma", "Kindu", "Isiro", "Gemena", "Kalemie", "Mwene-Ditu", "Kabinda", "Kamina", "Beni"
+];
+
+// ------------------------------------------------------------------
+// 2. SearchableSelect Component Types
+// ------------------------------------------------------------------
+interface SearchableSelectProps {
+  label: string;
+  options: string[];
+  onSelect: (value: string) => void;
+  selectedValue: string | null;
+  colors: Theme['colors'];
+}
+
+// ------------------------------------------------------------------
+// 3. SearchableSelect Component
+// ------------------------------------------------------------------
+const SearchableSelect: React.FC<SearchableSelectProps> = ({ label, options, onSelect, selectedValue, colors }) => {
+  const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Filtering Logic
+  const filteredOptions = useMemo((): string[] => {
+    if (!searchQuery) {
+      return options;
+    }
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return options.filter(option =>
+      option.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [options, searchQuery]);
+
+  // Handle Item Selection
+  const handleSelect = useCallback((item: string) => {
+    onSelect(item);
+    setSearchQuery('');
+    setModalVisible(false);
+  }, [onSelect]);
+
+  // Render function for FlatList items (Typed)
+  const renderItem: ListRenderItem<string> = ({ item }) => (
+    <TouchableOpacity
+      style={[localStyles.optionItem, { borderBottomColor: colors.border }]}
+      onPress={() => handleSelect(item)}
+    >
+      <Text style={[localStyles.optionText, { color: colors.text }]}>{item}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={localStyles.container}>
+      {/* --- Display Component (The Input Field) --- */}
+      <TouchableOpacity
+        style={[localStyles.displayInput, { borderColor: colors.border, backgroundColor: colors.card }]}
+        onPress={() => setModalVisible(true)}
+      >
+        <Text style={[localStyles.labelText, { color: colors.text, backgroundColor: colors.card }]}>{label}</Text>
+        <View style={localStyles.selectedValueContainer}>
+          <Text style={selectedValue ? localStyles.selectedValueText : localStyles.placeholderText}>
+            {selectedValue || "Sélectionner une ville..."}
+          </Text>
+          <Ionicons name="caret-down-outline" size={18} color={colors.text} />
+        </View>
+      </TouchableOpacity>
+
+      {/* --- Modal for Search and Selection --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <SafeAreaView style={localStyles.modalOverlay}>
+          <View style={[localStyles.modalContent, { backgroundColor: colors.background }]}>
+            {/* Search Input */}
+            <View style={[localStyles.searchContainer, { borderBottomColor: colors.border }]}>
+              <Ionicons name="search" size={20} color={colors.text} style={localStyles.searchIcon} />
+              <TextInput
+                style={[localStyles.searchInput, { color: colors.text }]}
+                placeholder={`Rechercher ${label}...`}
+                placeholderTextColor={colors.text + '99'} // Use a slight opacity on text color
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus={true}
+              />
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                {searchQuery ? <Ionicons name="close-circle" size={20} color={colors.text} /> : null}
+              </TouchableOpacity>
+            </View>
+
+            {/* List of Filtered Options */}
+            <FlatList
+              data={filteredOptions}
+              keyExtractor={(item) => item}
+              renderItem={renderItem}
+              ListEmptyComponent={<Text style={[localStyles.emptyList, { color: colors.text }]}>Aucune ville correspondante trouvée.</Text>}
+            />
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={[localStyles.closeButton, { backgroundColor: colors.primary }]}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={localStyles.closeButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    </View>
+  );
+};
+
+// ------------------------------------------------------------------
+// 4. Main Poste Component
+// ------------------------------------------------------------------
 
 export type Article = {
   id?: string; // optionnel, Firestore le génère
@@ -35,16 +163,17 @@ export type Article = {
   category: string; // par exemple: 'Événements', 'Transport', etc.
   quantity?: string | null; // peut être vide selon catégorie
   images: string[]; // URLs des images uploadées
+  // Removed 'ville' field as it was redundant with 'town'
   prix?: string | null;
   currency?: 'FC' | 'USD' | null;
   date?: string | null; // ISO string si catégorie = Événements
   style?: 'gospel' | 'mondaine' | "ballon d'or" | "concour miss" | null; // si catégorie = Événements
   sex?: 'Homme' | 'Femme' | null;
   transportType?: 'voiture' | 'moto' | null; // si catégorie = Transport
+  town?: string | null; // <--- The correct field for the selected town
   created_at: string; // ISO string
   updated_at: string; // ISO string
 };
-
 
 const categories = [
   { name: 'Événements', icon: 'calendar' },
@@ -56,39 +185,42 @@ const categories = [
 ];
 
 export default function Poste() {
-  const [date, setDate] = useState(new Date());
-  const [show, setShow] = useState(false);
+  const [date, setDate] = useState<Date>(new Date());
+  const [show, setShow] = useState<boolean>(false);
   const [mode, setMode] = useState<'date' | 'time'>('date');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [images, setImages] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState('');
+  const [quantity, setQuantity] = useState<string>('');
   const [typeselected, setTypeSelected] = useState<"gospel" | "mondaine" | "ballon d'or" | "concour miss">("gospel");
   const [sex, setSex] = useState<"Homme" | "Femme">("Homme");
   const [selected, setSelected] = useState<"voiture" | "moto" | null>(null);
-  const [prix, setPrix] = useState('');
+  const [prix, setPrix] = useState<string>('');
   const [currency, setCurrency] = useState<'FC' | 'USD'>('FC');
   const [isLoading,setIsloading] = useState<boolean>(false)
   const [userAbos, setUserAbos] = useState<any[]>([]);
-  const [loadingAbos, setLoadingAbos] = useState(true);
+  const [loadingAbos, setLoadingAbos] = useState<boolean>(true);
   const { colors } = useTheme();
   const { user } = useAuth();
   const spinAnim = useRef(new Animated.Value(0)).current;
 
+  // State for SearchableSelect (Typed)
+  const [selectedTown, setSelectedTown] = useState<string | null>(null);
+
+
   useEffect(() => {
       spinning()
   }, []);
-
   
   useEffect(() => {
     if (user?.uid) fetchAbonnements();
   }, [user?.uid]);
 
-  const fetchAbonnements = async () => {
+  const fetchAbonnements = async () => { 
     try {
       setLoadingAbos(true)
-      const data = await getUserAbonnements(user.uid);
+      const data = await getUserAbonnements(user!.uid);
       setUserAbos(data);
     } catch (err) {
       console.error("Erreur abonnements:", err);
@@ -97,7 +229,7 @@ export default function Poste() {
     }
   };
 
-  const isCategoryAvailable = (category: string): boolean => {
+  const isCategoryAvailable = (category: string): boolean => { 
     const abo = userAbos.find((a) => a.category === category);
     if (!abo) return false;
     const daysLeft =
@@ -107,53 +239,53 @@ export default function Poste() {
   };
 
 
-
-  const spinning = () => {
-        Animated.loop(
-          Animated.timing(spinAnim, {
-            toValue: 1,
-            duration: 1000,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          })
-        ).start();
+  const spinning = () => { 
+      Animated.loop(
+        Animated.timing(spinAnim,
+{
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
   }
-
-  const spin = spinAnim.interpolate({
+  
+  const spin = spinAnim.interpolate({ 
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
-
-  const pickImages = async () => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    allowsMultipleSelection: true,
-    mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-    quality: 0.8,
-  });
-
-
+  const pickImages = async () => { 
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    
     if (!result.canceled) {
-      const uris = result.assets.map((a: any) => a.uri);
+      // Ensure result.assets is treated as an array of objects with a 'uri' property
+      const uris = result.assets.map((a: { uri: string }) => a.uri);
       setImages([...images, ...uris]);
     }
   };
 
-    const showMode = (currentMode: 'date' | 'time') => {
+    const showMode = (currentMode: 'date' | 'time') => { 
     setShow(true);
     setMode(currentMode);
   };
-
-  const onChange = (event: any, selectedDate?: Date) => {
+  
+  const onChange = (event: any, selectedDate?: Date) => { 
     setShow(Platform.OS === 'ios'); // iOS keeps picker open
     if (selectedDate) setDate(selectedDate);
   };
 
-  const addArticle = async (article:Article) => {
+  const addArticle = async (article:Article) => { 
     try {
       const newArticle = await createArticle(article);
       return newArticle
     } catch (error) {
+      console.error("Error creating article:", error);
       return null
     }
   }
@@ -163,6 +295,13 @@ export default function Poste() {
       Alert.alert("Erreur", "Veuillez choisir une catégorie.");
       return;
     }
+    
+    // --- Town Validation ---
+    if (!selectedTown) {
+        Alert.alert("Erreur", "Veuillez sélectionner une ville.");
+        return;
+    }
+    // ----------------------
 
     // Vérification spécifique selon la catégorie
     if (selectedCategory !== "Transport" && selectedCategory !== "Rencontre" && !title) {
@@ -205,7 +344,7 @@ export default function Poste() {
 
     // Objet final à envoyer
     const article: Article = {
-      uid: user?.uid || "anonymous", // Assurez-vous que l'utilisateur est connecté
+      uid: user?.uid || "anonymous",
       title,
       description,
       category: selectedCategory!,
@@ -217,6 +356,7 @@ export default function Poste() {
       style: selectedCategory === "Événements" ? typeselected : null,
       sex: selectedCategory === "Rencontre" ? sex : null,
       transportType: selectedCategory === "Transport" ? selected : null,
+      town: selectedTown, // <-- Correctly uses the state from the parent component
       created_at: now,
       updated_at: now,
     };
@@ -231,9 +371,8 @@ export default function Poste() {
       router.push("/liste");
     } else {
       setIsloading(false)
-       Alert.alert("Erreur", "Échec de l'ajout de l'article. Veuillez réessayer !");
+        Alert.alert("Erreur", "Échec de l'ajout de l'article. Veuillez réessayer !");
     }
-
     
   };
 
@@ -249,10 +388,8 @@ export default function Poste() {
     setTypeSelected("gospel");
     setSex("Homme");
     setSelected(null);
+    setSelectedTown(null); // Reset town
   }
-
-
-
 
 
   return (
@@ -264,16 +401,18 @@ export default function Poste() {
         <View style={styles.container}>
           <Header />
           <ScrollView 
-            showsVerticalScrollIndicator={false} 
+            showsVerticalScrollIndicator={false}
             style={[styles.card,{paddingBottom: 70,maxHeight:'70%',}]}
             keyboardShouldPersistTaps="handled"
             >
             
             <View style={{flexDirection:'row',justifyContent:'space-around'}}>
-                  
+                
+ 
               <Text style={[styles.title,{color:colors.text}]}>Nouvel Article</Text>
 
-              <TouchableOpacity onPress={()=>{
+              <TouchableOpacity
+onPress={()=>{
                 if (user?.uid) fetchAbonnements();
               }}>
                 <Ionicons name="refresh" size={24} color={colors.primary} />
@@ -291,10 +430,19 @@ export default function Poste() {
               onChangeText={setTitle}
             />}
 
+            {/* --- SearchableSelect for Town --- */}
+            <SearchableSelect
+              label="Sélectionner une ville"
+              options={DRCTowns}
+              onSelect={setSelectedTown}
+              selectedValue={selectedTown}
+              colors={colors} // Pass theme colors for styling
+            />
+
             {/* selection du type de transport */}
             { selectedCategory === "Transport" && 
             <View style={styles.container}>
-              <Text style={styles.label}>Sélectionnez votre type de transport :</Text>
+              <Text style={[styles.label, {color: colors.text}]}>Sélectionnez votre type de transport :</Text>
 
               {/* Option voiture */}
               <TouchableOpacity
@@ -306,7 +454,7 @@ export default function Poste() {
                   size={24}
                   color={selected === "voiture" ? colors.primary : "#555"}
                 />
-                <Text style={styles.text}>Voiture</Text>
+                <Text style={[styles.text, {color: colors.text}]}>Voiture</Text>
               </TouchableOpacity>
 
               {/* Option moto */}
@@ -319,13 +467,13 @@ export default function Poste() {
                   size={24}
                   color={selected === "moto" ? colors.primary : "#555"}
                 />
-                <Text style={styles.text}>Moto</Text>
+                <Text style={[styles.text, {color: colors.text}]}>Moto</Text>
               </TouchableOpacity>
 
             </View>}
 
             <TextInput
-              style={[styles.input, { height: 100, textAlignVertical: 'top',color:colors.text,borderColor: colors.border, }]}
+              style={[styles.input, { height: 100, textAlignVertical: 'top',color:colors.text,borderColor: colors.border,}]}
               placeholder="Description"
               placeholderTextColor="#ccc"
               value={description}
@@ -416,18 +564,20 @@ export default function Poste() {
             {/* Date picker */}
             { selectedCategory === 'Événements' &&
             <View style={styles.container}>
-              <Text style={styles.selectedText}>
+              <Text style={[styles.selectedText, {color: colors.text}]}>
                 Sélectionné : {date.toLocaleString('fr-FR')}
               </Text>
 
               {/* Bouton Date */}
-              <TouchableOpacity style={[styles.button,{backgroundColor:colors.primary}]} onPress={() => showMode('date')}>
+              <TouchableOpacity
+style={[styles.button,{backgroundColor:colors.primary}]} onPress={() => showMode('date')}>
                 <Ionicons name="calendar" size={20} color="#fff" style={{ marginRight: 8 }} />
                 <Text style={styles.buttonText}>Choisir une date</Text>
               </TouchableOpacity>
 
               {/* Bouton Heure */}
-              <TouchableOpacity style={[styles.button,{backgroundColor:colors.primary}]} onPress={() => showMode('time')}>
+              <TouchableOpacity
+style={[styles.button,{backgroundColor:colors.primary}]} onPress={() => showMode('time')}>
                 <Ionicons name="time" size={20} color="#fff" style={{ marginRight: 8 }} />
                 <Text style={styles.buttonText}>Choisir une heure</Text>
               </TouchableOpacity>
@@ -446,14 +596,14 @@ export default function Poste() {
               {/* style */}
             { selectedCategory === 'Événements' &&
               <View style={styles.container}>
-              <Text style={styles.label}>Choisissez le style :</Text>
+              <Text style={[styles.label, {color: colors.text}]}>Choisissez le style :</Text>
 
               <View style={[styles.pickerWrapper,{borderColor:colors.primary}]}>
                 <Picker
                   selectedValue={typeselected}
-                  onValueChange={(itemValue) => setTypeSelected(itemValue)}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
+                  onValueChange={(itemValue) => setTypeSelected(itemValue as "gospel" | "mondaine" | "ballon d'or" | "concour miss")}
+                  style={[styles.picker, {color: colors.text, backgroundColor: colors.card}]}
+                  dropdownIconColor={colors.primary}
                 >
                   <Picker.Item label="🎶 Gospel" value="gospel" />
                   <Picker.Item label="🎵 Mondaine" value="mondaine" />
@@ -464,17 +614,18 @@ export default function Poste() {
 
             </View>
             }
-                          {/* style */}
+                
+            {/* style */}
             { selectedCategory === 'Rencontre' &&
               <View style={styles.container}>
-              <Text style={styles.label}>Choisissez votre sex :</Text>
+              <Text style={[styles.label, {color: colors.text}]}>Choisissez votre sex :</Text>
 
-              <View style={styles.pickerWrapper}>
+              <View style={[styles.pickerWrapper, {borderColor:colors.primary}]}>
                 <Picker
                   selectedValue={sex}
-                  onValueChange={(itemValue) => setSex(itemValue)}
-                  style={styles.picker}
-                  dropdownIconColor="#fff"
+                  onValueChange={(itemValue) => setSex(itemValue as "Homme" | "Femme")}
+                  style={[styles.picker, {color: colors.text, backgroundColor: colors.card}]}
+                  dropdownIconColor={colors.primary}
                 >
                   <Picker.Item label="Homme" value="Homme" />
                   <Picker.Item label="Femme" value="Femme" />
@@ -485,9 +636,10 @@ export default function Poste() {
             }
 
             {/* Quantité */}
-            { (selectedCategory !== "Transport" && selectedCategory !== "Réservation"  && selectedCategory !== "Livraison"  && selectedCategory !== "Rencontre" ) && 
+            { (selectedCategory !== "Transport" && selectedCategory !== "Réservation"
+            && selectedCategory !== "Livraison"  && selectedCategory !== "Rencontre" ) && 
             <TextInput
-              style={[styles.input,{borderColor:colors.primary}]}
+              style={[styles.input,{borderColor:colors.primary, color: colors.text}]}
               placeholder="Quantité"
               placeholderTextColor="#ccc"
               value={quantity}
@@ -497,13 +649,14 @@ export default function Poste() {
             {/* Prix */}
 
             
-            { (selectedCategory === "Transport" || selectedCategory === "Livraison")  && 
-            <Text style={styles.label}>Prix par Km :</Text> }
+            { (selectedCategory === "Transport" || selectedCategory === "Livraison")
+            && 
+            <Text style={[styles.label, {color: colors.text}]}>Prix par Km :</Text> }
             { selectedCategory === "Réservation" && 
-            <Text style={styles.label}>Prix par Jour :</Text> }
+            <Text style={[styles.label, {color: colors.text}]}>Prix par Jour :</Text> }
             {selectedCategory !== "Rencontre" &&
             <TextInput
-              style={[styles.input,{borderColor:colors.primary}]}
+              style={[styles.input,{borderColor:colors.primary, color: colors.text}]}
               placeholder="Prix"
               placeholderTextColor="#ccc"
               value={prix}
@@ -534,7 +687,8 @@ export default function Poste() {
             </View>}
 
             {/* Bouton pour choisir les photos */}
-            <TouchableOpacity style={[styles.imageButton,{backgroundColor:colors.primary}]} onPress={pickImages}>
+            <TouchableOpacity
+style={[styles.imageButton,{backgroundColor:colors.primary}]} onPress={pickImages}>
               <Ionicons name="images" size={22} color="#fff" />
               <Text style={[styles.imageButtonText]}>Ajouter des photos</Text>
             </TouchableOpacity>
@@ -548,6 +702,7 @@ export default function Poste() {
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
                 <ImageBackground source={{ uri: item }} style={styles.preview} imageStyle={{ borderRadius: 12 }}>
+                
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => setImages(images.filter((img) => img !== item))}
@@ -559,13 +714,17 @@ export default function Poste() {
             />
 
             {/* Bouton publier */}
-            <TouchableOpacity style={[styles.button,{backgroundColor:colors.primary}]} onPress={handlePublish} disabled={isLoading}>
-                  <View style={{flexDirection:'row',alignItems:'center'}}>
-                    {isLoading && <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                      <Ionicons name="sync" size={30} color="#fff" />
-                    </Animated.View>}
-                    <Text style={styles.buttonText}>Publier</Text>
-                  </View>
+            <TouchableOpacity
+style={[styles.button,{backgroundColor:colors.primary}]} onPress={handlePublish}
+disabled={isLoading}>
+                
+              <View style={{flexDirection:'row',alignItems:'center'}}>
+                
+                {isLoading && <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                  <Ionicons name="sync" size={30} color="#fff" />
+                </Animated.View>}
+                <Text style={styles.buttonText}>Publier</Text>
+              </View>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -573,6 +732,102 @@ export default function Poste() {
     </KeyboardAvoidingView>
   );
 }
+
+// ------------------------------------------------------------------
+// 5. Combined Styles
+// ------------------------------------------------------------------
+
+// Local styles for the SearchableSelect to avoid conflicts
+const localStyles = StyleSheet.create({
+  container: {
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  // --- Display Input Styles ---
+  displayInput: {
+    padding: 15,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  labelText: {
+    position: 'absolute',
+    top: -10,
+    left: 10,
+    paddingHorizontal: 4,
+    fontSize: 12,
+    zIndex: 10,
+    fontWeight: '600',
+  },
+  selectedValueContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedValueText: {
+    fontSize: 16,
+    color: '#000',
+    flex: 1,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#888',
+    flex: 1,
+  },
+  // --- Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    maxHeight: height * 0.7,
+    padding: 20,
+  },
+  // --- Search Input Styles ---
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 16,
+  },
+  // --- List Styles ---
+  optionItem: {
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+  },
+  optionText: {
+    fontSize: 16,
+  },
+  emptyList: {
+    padding: 20,
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  // --- Close Button Styles ---
+  closeButton: {
+    marginTop: 15,
+    padding: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
+
 
 const styles = StyleSheet.create({
   bg: {
@@ -616,7 +871,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
     width: 90,
   },
-
+  
     lockBadge: {
     position: "absolute",
     top: 6,
@@ -625,7 +880,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 2,
   },
-
+  
   imageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -671,14 +926,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
+  
   inner: {
     width: 12,
     height: 12,
     backgroundColor: '#fff',
     borderRadius: 2,
   },
-
+  
   label: {
     fontSize: 16,
     marginHorizontal:5,
@@ -715,8 +970,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     margin: 5,
     width:35,
-    position:'fixed',
-    top:40
+    // Note: 'fixed' is not a standard RN property. Using 'absolute' might be better here.
+    position:'absolute', 
+    top:5,
+    right:5,
   },
-
+  
 });

@@ -2,6 +2,8 @@
 
 ## screen : SwipeableImage
 
+## App-Specific Password: avjj-kbbo-mcej-agbl
+
 
 Type                JKS
 Key Alias           e3e4f98a7fb8cc287257807c1ca6cebb

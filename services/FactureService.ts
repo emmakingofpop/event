@@ -115,11 +115,7 @@ export const FactureService = {
         id: docSnap.id,
         ...docSnap.data(),
       })) as Facture[];
-    } catch (error) {
-      console.error(
-        "Erreur lors de la récupération de toutes les factures :",
-        error
-      );
+    } catch{
       return [];
     }
   },

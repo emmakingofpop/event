@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { FactureService } from "@/services/FactureService";
+import { TicketSoldOutService } from "@/services/TicketSoldOutService";
 import { tel } from "@/type/type";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -136,6 +137,13 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
                             })
                           : "";
 
+                          // ✅ Create new TicketSoldOut
+
+                          if(factureId && item.category === "Événements") await CreateSouldOutTicket({
+                            posteId: item.id || "",
+                            factureId: factureId,
+                          })
+
                       const message = getPersonalizedMessage(
                         item.category,
                         item,
@@ -163,6 +171,16 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
     Alert.alert("Erreur","Essayer encore")
   }
 };
+
+  // ✅ Create new TicketSoldOut
+  const CreateSouldOutTicket = async (data: { posteId: string; factureId: string }) => {
+    try {
+      const res =  await TicketSoldOutService.create(data)
+      return res
+    } catch {
+      return null
+    }
+  }
 
 
   const handleNext = () => {

@@ -30,7 +30,9 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "WRITE_EXTERNAL_STORAGE", "READ_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_AUDIO"
       ]
     },
     "notification": {
@@ -56,7 +58,6 @@
           }
         }
       ],
-
       [
         "expo-notifications",
         {
@@ -72,7 +73,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "bba9ff04-792f-401a-bf12-f958898f792c"
+        "projectId": "cbc3ac42-264d-4846-a31a-3f4676e04a14"
       }
     }
   }

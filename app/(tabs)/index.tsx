@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { checkActiveAbonnement } from '@/services/AbonnementServices';
 import { getArticlesLimit } from '@/services/articleService';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@react-navigation/native';
@@ -6,6 +7,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   Modal,
@@ -26,6 +28,7 @@ export default function HomeScreen() {
   const { user, setCat } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [aboRencontre, setAboRencontre] = useState(false);
   const [data, setData] = useState<any[]>([]); 
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredData, setFilteredData] = useState<any[]>([]);
@@ -40,6 +43,29 @@ export default function HomeScreen() {
     { name: 'Rencontre', icon: 'heart' },
   ];
 
+  // check abonnement rencontre 
+
+  const checkActiveAbonnements = async (uid: string, category: string) => {
+    try {
+      const res = await checkActiveAbonnement(uid,category)
+      setAboRencontre(res)
+      return res
+    } catch {
+      return false
+    }
+  }
+
+  const check_abonnement = async (category:string) => {
+    if (!aboRencontre) {
+      const res =  await checkActiveAbonnements(user?.uid,category)
+      if(!res) Alert.alert("Erreur","paye l'abonnement")
+      if(res) setrouter(category)
+      
+    }else{
+      setrouter(category)
+    }
+  }
+
   const setrouter = (cat: string) => {
     setCat(cat);
     router.push('/ListePoste');
@@ -47,6 +73,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     getAllArticles();
+    checkActiveAbonnements(user?.uid,'Rencontre')
   }, [user]);
 
   const getAllArticles = async () => {
@@ -97,6 +124,12 @@ export default function HomeScreen() {
         
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/TicketPayeeScreen')}
+        >
+          <Text style={{ color: '#fff' }}>Tickets payée</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.btn, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/VoteScreen')}
         >
           <Text style={{ color: '#fff' }}>Voter</Text>
@@ -122,8 +155,21 @@ export default function HomeScreen() {
       </ScrollView>
 
       <View style={styles.categories}>
-        {categories.map((cat, index) => (
-          <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: colors.card }]} onPress={() => setrouter(cat.name)}>
+        {categories.map((cat, index) => cat.name === 'Rencontre' ? (
+          <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: aboRencontre ? '#EEEEF1' : colors.card  }]} 
+          onPress={() =>check_abonnement('Rencontre')}
+          
+          >
+            {!aboRencontre && (
+              <View style={styles.lockBadge}>
+                <Ionicons name="lock-closed" size={12} color="#fff" />
+              </View>
+            )}
+            <Ionicons name={cat.icon as any} size={24} color={colors.primary} />
+            <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>{cat.name}</Text>
+          </TouchableOpacity>
+        ): (
+          <TouchableOpacity key={index} style={[styles.categoryButton, { backgroundColor: '#EEEEF1' }]} onPress={() => setrouter(cat.name)}>
             <Ionicons name={cat.icon as any} size={24} color={colors.primary} />
             <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>{cat.name}</Text>
           </TouchableOpacity>
@@ -292,6 +338,15 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+
+  lockBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(255,0,0,0.7)",
+    borderRadius: 8,
+    padding: 2,
   },
   
   // New Modal Styles
