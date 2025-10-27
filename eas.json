@@ -18,6 +18,13 @@
       }
     },
     "production": {
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
+      },
       "autoIncrement": true,
       "env": {
         "EAS_USE_NPM_INSTALL": "true"

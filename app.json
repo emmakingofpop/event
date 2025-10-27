@@ -14,11 +14,13 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,
-        "UIRequiresFullScreen": true
+        "UIRequiresFullScreen": true,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.fikiriatown.levrai",
+      "versionCode": 3,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
