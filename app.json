@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.fikiriatown.levrai",
-      "versionCode": 3,
+      "versionCode": 5,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",

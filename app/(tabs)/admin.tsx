@@ -1,5 +1,5 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -97,7 +97,7 @@ const QuickActionButton: React.FC<QuickActionButtonProps> = ({
 const AdminScreen: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { colors } = useTheme();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchDashboardData().then((res) => {
@@ -105,6 +105,18 @@ const AdminScreen: React.FC = () => {
       setLoading(false);
     });
   }, []);
+
+
+  
+  if (user?.role !== "admin") {
+    return (
+      <View style={[styles.container, styles.loaderContainer]}>
+        <Text style={styles.loaderText}>Accès refusé. Vous n'êtes pas administrateur.</Text>
+      </View>
+    );
+  }
+
+
 
   if (loading) {
     return (
