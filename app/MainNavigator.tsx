@@ -29,12 +29,12 @@ export const GreenDarkTheme = {
   ...NavigationDarkTheme,
   colors: {
     ...NavigationDarkTheme.colors,
-    primary: '#34D399',
-    background: '#fff',
-    card: 'rgba(6, 95, 70, 0.3)',       // glassy dark card
-    text: '#D1FAE5',
-    border: 'rgba(16, 185, 129, 0.3)',
-    notification: '#6EE7B7',
+    primary: '#A2492C',
+    background: '#fff',        // soft green background
+    card: 'rgba(247, 193, 153, 0.2)',  // glassy card
+    text: 'black',
+    border: '#F18537', // semi-transparent border
+    notification: '#047857',
   },
 };
 

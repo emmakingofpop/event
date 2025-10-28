@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { FactureService } from "@/services/FactureService";
 import { TicketSoldOutService } from "@/services/TicketSoldOutService";
+import { getUserById } from "@/services/UserService";
 import { tel } from "@/type/type";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -85,6 +86,20 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
   useEffect(() => {
     NavigationBar.setVisibilityAsync("hidden");
   }, []);
+
+  useEffect(() => {
+    NavigationBar.setVisibilityAsync("hidden");
+  }, []);
+
+  const sendMessageToNoEvent = async () => {
+    try {
+      const res = await getUserById(item.uid);
+      console.log(res?.user?.phoneNumber || "")
+      await handleSendMessage(res?.user?.phoneNumber || "");
+    } catch {
+      return "";
+    }
+  }
 
   // 🔹 Envoi de message WhatsApp
   const handleWhatsApp = (phone: string, message: string) => {
@@ -367,7 +382,7 @@ export default function SwipeableImage({ images }: SwipeCardProps) {
           if (item.category === "Événements") {
             handleSendMessage(tel)
           } else {
-            handleSendMessage(user.phoneNumber)
+            sendMessageToNoEvent()
           }
           }}
       >
