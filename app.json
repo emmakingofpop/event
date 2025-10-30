@@ -31,10 +31,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE",
-        "READ_MEDIA_AUDIO"
+        "CAMERA"
       ]
     },
     "notification": {

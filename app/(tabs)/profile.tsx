@@ -59,7 +59,6 @@ export default function Profile() {
     const getProfileById = async (uid: string) => {
       try {
         const res = await getProfileByUid(uid);
-        console.log(res)
         if (res && res.length > 0) {
           const data = res[0];
           setId(data.id);
@@ -68,7 +67,7 @@ export default function Profile() {
           setAge(data.age || "");
           setTel(data.tel || ""); // 🔹 load existing phone
           setSex(data.sex || "Homme");
-          setPhotos(data.photos || []);
+          setPhotos(data.images || []);
           setCheckProfile("full");
         } else {
           setCheckProfile("empty");
@@ -79,7 +78,7 @@ export default function Profile() {
     };
 
     getProfileById(user?.uid);
-  }, []);
+  }, [user]);
 
   const handleSubmit = async () => {
     if (!fullName || !description || !age || !tel) {

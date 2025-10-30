@@ -61,15 +61,9 @@ export const createProfile = async (profile: any) => {
   // 🔹 Ajouter le profil à Firestore
   const docRef = await addDoc(profileCollection, newProfile);
 
-  // 🔹 Mettre à jour le profil avec le doc ID comme uid
-  await updateDoc(doc(db, "profiles", docRef.id), {
-    uid: docRef.id,
-  });
-
   return {
     id: docRef.id,
-    ...newProfile,
-    uid: docRef.id,
+    ...newProfile
   };
 };
 
