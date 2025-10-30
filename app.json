@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.fikiriatown.levrai",
-      "versionCode": 5,
+      "versionCode": 7,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
@@ -32,6 +32,13 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "notification": {
